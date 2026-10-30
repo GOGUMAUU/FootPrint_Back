@@ -1,13 +1,15 @@
 package com.example.footprint.service;
 
-import com.example.footprint.entity.Guestbook;
-import com.example.footprint.repository.FollowRepository;
-import com.example.footprint.repository.GuestbookRepository;
-import lombok.RequiredArgsConstructor;
+import java.util.List;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
+import com.example.footprint.entity.Guestbook;
+import com.example.footprint.repository.FollowRepository;
+import com.example.footprint.repository.maps.GuestbookRepository;
+
+import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
