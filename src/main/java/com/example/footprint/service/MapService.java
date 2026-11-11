@@ -35,7 +35,7 @@ public class MapService {
             targetUserIds = followRepository.findAcceptedFollowingIds(currentUserId);
         } else if ("user".equals(scope) && targetUserId != null) {
             // 특정 유저 조회 시 팔로우 승인 여부 검증[cite: 3, 4]
-            boolean isAccepted = followRepository.existsByFollowerIdAndFollowingIdAndStatus(currentUserId, targetUserId, "ACCEPTED");
+            boolean isAccepted = followRepository.existsByFollower_UserIdAndFollowing_UserIdAndStatus(currentUserId, targetUserId, "ACCEPTED");
             if (!isAccepted && !currentUserId.equals(targetUserId)) {
                 throw new IllegalArgumentException("팔로우 승인된 사용자만 기록을 조회할 수 있습니다.");
             }

@@ -9,7 +9,7 @@ import java.math.BigDecimal;
 
 public interface GuestbookRepository extends JpaRepository<Guestbook, Long> {
     // 특정 유저(내 유저 ID)가 작성한 방명록 조회
-    List<Guestbook> findByUserId(Long userId);
+        List<Guestbook> findByUser_UserId(Long userId);
     // 영역 내 방명록 조회 (지도 영역 바운딩 박스)
     @Query("SELECT g FROM Guestbook g " +
            "WHERE g.user.userId IN :userIds " +

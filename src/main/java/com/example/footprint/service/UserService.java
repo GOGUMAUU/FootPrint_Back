@@ -21,7 +21,7 @@ public class UserService {
      * 내가 작성한 방명록 목록 조회 (GET /api/users/me/guestbooks)
      */
     public List<Guestbook> getMyGuestbooks(Long currentUserId) {
-        return guestbookRepository.findByUserId(currentUserId);
+        return guestbookRepository.findByUser_UserId(currentUserId);
     }
 
     /**
@@ -34,6 +34,6 @@ public class UserService {
         }
 
         // DB에서 currentUserId가 targetUserId를 팔로우하고 있으며, 상태가 ACCEPTED인지 확인
-        return followRepository.existsByFollowerIdAndFollowingIdAndStatus(currentUserId, targetUserId, "ACCEPTED");
+        return followRepository.existsByFollower_UserIdAndFollowing_UserIdAndStatus(currentUserId, targetUserId, "ACCEPTED");
     }
 }
