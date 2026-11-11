@@ -11,5 +11,5 @@ public interface FollowRepository extends JpaRepository<Follow, Long> {
     @Query("SELECT f.following.userId FROM Follow f WHERE f.follower.userId = :currentUserId AND f.status = 'ACCEPTED'")
     List<Long> findAcceptedFollowingIds(@Param("currentUserId") Long currentUserId);
     // 팔로우 승인(ACCEPTED) 상태 여부 확인
-    boolean existsByFollowerIdAndFollowingIdAndStatus(Long followerId, Long followingId, String status);
+        boolean existsByFollower_UserIdAndFollowing_UserIdAndStatus(Long followerId, Long followingId, String status);
 }
