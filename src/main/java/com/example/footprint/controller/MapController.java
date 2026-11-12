@@ -13,6 +13,7 @@ import com.example.footprint.dto.ApiResponse;
 import com.example.footprint.dto.GuestbookBoundResponseDto;
 import com.example.footprint.dto.maps.NearbyGuestbookRequestDto;
 import com.example.footprint.dto.maps.NearbyGuestbookResponseDto;
+import com.example.footprint.dto.maps.PlaceSearchResponseDto;
 import com.example.footprint.service.MapService;
 
 import lombok.RequiredArgsConstructor;
@@ -57,4 +58,15 @@ public class MapController {
                 ApiResponse.success("주변 방명록 조회가 완료되었습니다.", responseData)
         );
     }
-}
+
+    @GetMapping("/search")
+public ResponseEntity<ApiResponse<List<PlaceSearchResponseDto>>> searchPlaces(
+        @RequestParam String keyword) {
+
+    List<PlaceSearchResponseDto> places = mapService.searchPlaces(keyword);
+
+    return ResponseEntity.ok(
+            ApiResponse.success("장소 검색이 완료되었습니다.", places)
+    );
+
+}}

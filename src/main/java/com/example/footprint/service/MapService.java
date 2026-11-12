@@ -1,20 +1,30 @@
 package com.example.footprint.service;
 
 import java.math.BigDecimal;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import com.example.footprint.dto.GuestbookBoundResponseDto;
 import com.example.footprint.dto.maps.NearbyGuestbookRequestDto;
 import com.example.footprint.dto.maps.NearbyGuestbookResponseDto;
+import com.example.footprint.dto.maps.PlaceSearchResponseDto;
 import com.example.footprint.entity.Guestbook;
 import com.example.footprint.repository.FollowRepository;
 import com.example.footprint.repository.maps.GuestbookRepository;
+import com.fasterxml.jackson.databind.JsonNode;
 
 import lombok.RequiredArgsConstructor;
 
@@ -118,6 +128,46 @@ private List<NearbyGuestbookResponseDto.GuestbookItem> processClusteringAndMappi
 
         return result;
     }
+
+    @Value("${kakao.api.key}")
+private String kakaoApiKey;
+
+public List<PlaceSearchResponseDto> searchPlaces(String keyword) {
+    if (keyword == null || keyword.trim().isEmpty()) {
+        return Collections.emptyList();
+    }
+
+    URI uri = UriComponentsBuilder
+            .fromUriString("https://dapi.kakao.com/v2/local/search/keyword.json")
+            .queryParam("query", keyword)
+            .queryParam("size", 15) // 최대 15개 결과 반환
+            .encode()
+            .build()
+            .toUri();
+
+    HttpHeaders headers;
+        headers = new HttpHeaders();
+    headers.set("Authorization", "KakaoAK " + kakaoApiKey);
+    HttpEntity<String> entity = new HttpEntity<>(headers);
+
+    RestTemplate restTemplate = new RestTemplate();
+    ResponseEntity<JsonNode> response = restTemplate.exchange(uri, HttpMethod.GET, entity, JsonNode.class);
+
+    List<PlaceSearchResponseDto> result = new ArrayList<>();
+    JsonNode documents = response.getBody().path("documents");
+
+    for (JsonNode doc : documents) {
+        result.add(PlaceSearchResponseDto.builder()
+                .placeName(doc.path("place_name").asText())
+                .addressName(doc.path("address_name").asText())
+                .roadAddressName(doc.path("road_address_name").asText())
+                .latitude(Double.parseDouble(doc.path("y").asText()))
+                .longitude(Double.parseDouble(doc.path("x").asText()))
+                .categoryName(doc.path("category_group_name").asText())
+                .build());
+    }
+
+    return result;}
 
 
 
