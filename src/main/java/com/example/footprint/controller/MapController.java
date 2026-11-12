@@ -1,12 +1,13 @@
 package com.example.footprint.controller;
 
 import com.example.footprint.dto.GuestbookBoundResponseDto;
+import com.example.footprint.security.CurrentUserProvider;
 import com.example.footprint.service.MapService;
+import com.example.footprint.service.PolicyService;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/maps")
@@ -14,6 +15,8 @@ import java.util.List;
 public class MapController {
 
     private final MapService mapService;
+    private final CurrentUserProvider current;
+    private final PolicyService policies;
 
     @GetMapping("/guestbooks/bound")
     public ResponseEntity<List<GuestbookBoundResponseDto>> getGuestbooksInBound(
@@ -29,7 +32,8 @@ public class MapController {
             @RequestParam(required = false) String sort
     ) {
         // 내 사용자 ID (Spring Security Context 등에서 가져온다고 가정)
-        Long currentUserId = 1L; 
+        Long currentUserId = current.id();
+        policies.requireLocation(currentUserId);
 
         List<GuestbookBoundResponseDto> result = mapService.getGuestbooksInBound(
                 currentUserId, scope, targetUserId, zoom, southLat, westLng, northLat, eastLng, period, ageGroup, sort

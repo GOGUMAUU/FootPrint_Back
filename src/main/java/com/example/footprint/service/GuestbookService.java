@@ -1,27 +1,17 @@
 package com.example.footprint.service;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-
-import org.springframework.http.HttpStatus;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
+import com.example.footprint.entity.Guestbook.Visibility;
+import com.example.footprint.entity.Report.ReportReason;
+import com.example.footprint.entity.Report.ReportStatus;
 
 import com.example.footprint.dto.GuestbookRequest;
 import com.example.footprint.dto.GuestbookResponse;
 import com.example.footprint.dto.ReportRequest;
 import com.example.footprint.entity.Guestbook;
-import com.example.footprint.entity.Guestbook.Visibility;
 import com.example.footprint.entity.GuestbookLike;
 import com.example.footprint.entity.GuestbookPhoto;
 import com.example.footprint.entity.GuestbookView;
 import com.example.footprint.entity.Report;
-import com.example.footprint.entity.Report.ReportReason;
-import com.example.footprint.entity.Report.ReportStatus;
 import com.example.footprint.entity.User;
 import com.example.footprint.repository.GuestbookLikeRepository;
 import com.example.footprint.repository.GuestbookPhotoRepository;
@@ -31,8 +21,16 @@ import com.example.footprint.repository.ReportRepository;
 import com.example.footprint.repository.UserRepository;
 import com.example.footprint.util.GeoUtils;
 import com.example.footprint.util.GuestbookPolicy;
-
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 @Service
 @RequiredArgsConstructor
@@ -45,10 +43,13 @@ public class GuestbookService {
     private final ReportRepository reportRepository;
     private final UserRepository userRepository;
     private final PhotoStorageService storage;
+    private final UserService contentAccess;
+    private final PolicyService policies;
 
     // ---------- 작성 ----------
     @Transactional
     public GuestbookResponse create(Long userId, GuestbookRequest req) {
+        policies.requireLocation(userId);
         User user = requireUser(userId);
 
         if (req.getLatitude() == null || req.getLongitude() == null) {
@@ -60,7 +61,7 @@ public class GuestbookService {
         validateKorea(req.getLatitude(), req.getLongitude());
 
         String content = validateContent(req.getContent());
-        List<String> photoPaths = validatePhotos(req.getPhotoPaths());
+        List<String> photoPaths = validatePhotos(userId, req.getPhotoPaths());
 
         double distance = GeoUtils.distanceMeters(req.getCurrentLatitude(), req.getCurrentLongitude(),
                 req.getLatitude(), req.getLongitude());
@@ -87,13 +88,11 @@ public class GuestbookService {
     @Transactional(readOnly = true)
     public GuestbookResponse get(Long userId, Long guestbookId, Double lat, Double lng) {
         Guestbook g = requireGuestbook(guestbookId);
+        contentAccess.requireReadableGuestbook(userId, g);
         boolean mine = g.getUser().getUserId().equals(userId);
 
         if (!mine) {
-            // TODO: FOLLOWERS_ONLY는 팔로우 기능(3번 담당)이 생기면 팔로워에게 허용
-            if (g.getVisibility() != null && g.getVisibility() != Visibility.PUBLIC) {
-                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "공개되지 않은 방명록입니다.");
-            }
+            policies.requireLocation(userId);
             if (lat == null || lng == null) {
                 throw bad("현재 위치가 필요합니다.");
             }
@@ -124,7 +123,7 @@ public class GuestbookService {
             g.setVisibility(parseVisibility(req.getVisibility(), g.getVisibility()));
         }
         if (req.getPhotoPaths() != null) {
-            List<String> newPaths = validatePhotos(req.getPhotoPaths());
+            List<String> newPaths = validatePhotos(userId, req.getPhotoPaths());
             List<GuestbookPhoto> old = photoRepository.findByGuestbook_GuestbookIdOrderBySortOrderAsc(guestbookId);
             Set<String> keep = new HashSet<>(newPaths);
 
@@ -142,6 +141,7 @@ public class GuestbookService {
     // ---------- 삭제 ----------
     @Transactional
     public void delete(Long userId, Long guestbookId) {
+        requireUser(userId);
         Guestbook g = requireGuestbook(guestbookId);
         requireOwner(g, userId);
 
@@ -164,6 +164,7 @@ public class GuestbookService {
     public void like(Long userId, Long guestbookId) {
         User user = requireUser(userId);
         Guestbook g = requireGuestbook(guestbookId);
+        contentAccess.requireReadableGuestbook(userId, g);
         if (!likeRepository.existsByGuestbook_GuestbookIdAndUser_UserId(guestbookId, userId)) {
             likeRepository.save(GuestbookLike.builder().guestbook(g).user(user).build());
         }
@@ -180,6 +181,7 @@ public class GuestbookService {
     public void saveView(Long userId, Long guestbookId) {
         User user = requireUser(userId);
         Guestbook g = requireGuestbook(guestbookId);
+        contentAccess.requireReadableGuestbook(userId, g);
         if (!viewRepository.existsByGuestbook_GuestbookIdAndUser_UserId(guestbookId, userId)) {
             viewRepository.save(GuestbookView.builder().guestbook(g).user(user).build());
         }
@@ -190,6 +192,7 @@ public class GuestbookService {
     public void report(Long userId, Long guestbookId, ReportRequest req) {
         User reporter = requireUser(userId);
         Guestbook g = requireGuestbook(guestbookId);
+        contentAccess.requireReadableGuestbook(userId, g);
 
         if (g.getUser().getUserId().equals(userId)) {
             throw bad("내 방명록은 신고할 수 없어요.");
@@ -245,12 +248,13 @@ public class GuestbookService {
     }
 
     private User requireUser(Long userId) {
-        return userRepository.findById(userId)
+        return userRepository.lockActive(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "사용자를 찾을 수 없습니다."));
     }
 
     private Guestbook requireGuestbook(Long id) {
         return guestbookRepository.findById(id)
+                .filter(g -> g.getUser().getDeletedAt() == null)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "방명록을 찾을 수 없습니다."));
     }
 
@@ -269,13 +273,14 @@ public class GuestbookService {
         return c;
     }
 
-    private List<String> validatePhotos(List<String> paths) {
+    private List<String> validatePhotos(Long userId, List<String> paths) {
         if (paths == null || paths.isEmpty()) throw bad("사진을 1장 이상 추가하세요.");
         if (paths.size() > GuestbookPolicy.MAX_PHOTOS) {
             throw bad("사진은 최대 " + GuestbookPolicy.MAX_PHOTOS + "장까지 가능합니다.");
         }
         for (String p : paths) {
             if (!storage.exists(p)) throw bad("올바르지 않은 사진 경로입니다.");
+            storage.requireOwned(userId, p);
         }
         return paths;
     }

@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
+
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -22,80 +22,71 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * 방명록 작성/상세/수정/삭제/좋아요/열람 기록/신고.
- * 인증이 아직 없어 임시로 X-User-Id 헤더(없으면 1번)를 사용자 식별에 사용합니다. (로그인 구현 후 교체)
+ * JWT로 인증된 사용자만 방명록 API를 호출할 수 있습니다.
  */
 @RestController
 @RequestMapping("/api/guestbooks")
 @RequiredArgsConstructor
 public class GuestbookController {
 
-    private static final String USER_HEADER = "X-User-Id";
-    private static final String DEFAULT_USER = "1";
+    private final com.example.footprint.security.CurrentUserProvider current;
 
     private final GuestbookService guestbookService;
 
     @PostMapping
     public ResponseEntity<GuestbookResponse> create(
-            @RequestHeader(value = USER_HEADER, defaultValue = DEFAULT_USER) Long userId,
             @RequestBody GuestbookRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(guestbookService.create(userId, request));
+        return ResponseEntity.status(HttpStatus.CREATED).body(guestbookService.create(current.id(), request));
     }
 
     @GetMapping("/{id}")
     public GuestbookResponse get(
-            @RequestHeader(value = USER_HEADER, defaultValue = DEFAULT_USER) Long userId,
             @PathVariable Long id,
             @RequestParam(required = false) Double lat,
             @RequestParam(required = false) Double lng) {
-        return guestbookService.get(userId, id, lat, lng);
+        return guestbookService.get(current.id(), id, lat, lng);
     }
 
     @PutMapping("/{id}")
     public GuestbookResponse update(
-            @RequestHeader(value = USER_HEADER, defaultValue = DEFAULT_USER) Long userId,
             @PathVariable Long id,
             @RequestBody GuestbookRequest request) {
-        return guestbookService.update(userId, id, request);
+        return guestbookService.update(current.id(), id, request);
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(
-            @RequestHeader(value = USER_HEADER, defaultValue = DEFAULT_USER) Long userId,
             @PathVariable Long id) {
-        guestbookService.delete(userId, id);
+        guestbookService.delete(current.id(), id);
         return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/{id}/likes")
     public ResponseEntity<Void> like(
-            @RequestHeader(value = USER_HEADER, defaultValue = DEFAULT_USER) Long userId,
             @PathVariable Long id) {
-        guestbookService.like(userId, id);
+        guestbookService.like(current.id(), id);
         return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping("/{id}/likes")
     public ResponseEntity<Void> unlike(
-            @RequestHeader(value = USER_HEADER, defaultValue = DEFAULT_USER) Long userId,
             @PathVariable Long id) {
-        guestbookService.unlike(userId, id);
+        guestbookService.unlike(current.id(), id);
         return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/{id}/views")
     public ResponseEntity<Void> saveView(
-            @RequestHeader(value = USER_HEADER, defaultValue = DEFAULT_USER) Long userId,
             @PathVariable Long id) {
-        guestbookService.saveView(userId, id);
+        guestbookService.saveView(current.id(), id);
         return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/{id}/reports")
     public ResponseEntity<Void> report(
-            @RequestHeader(value = USER_HEADER, defaultValue = DEFAULT_USER) Long userId,
             @PathVariable Long id,
             @RequestBody ReportRequest request) {
-        guestbookService.report(userId, id, request);
+        guestbookService.report(current.id(), id, request);
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 }
