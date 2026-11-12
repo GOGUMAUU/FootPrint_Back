@@ -29,18 +29,6 @@ public class PolicyService {
     public PolicyDocument policy(String type) {
         return current().stream().filter(p -> p.getType().equals(type)).findFirst().orElseThrow(ApiException::missing);
     }
-    public void validateSignup(List<ConsentInput> inputs) {
-        List<PolicyDocument> docs = current();
-        if (docs.stream().noneMatch(p -> "TERMS".equals(p.getType()) && p.isConsentRequired() && "SIGNUP".equals(p.getRequiredAt()))
-                || docs.stream().noneMatch(p -> "PRIVACY".equals(p.getType()) && !p.isConsentRequired()))
-            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "POLICIES_NOT_READY", "실제 서비스 약관과 개인정보 처리방침 게시 후 가입할 수 있습니다.");
-        validate(inputs);
-        for (var doc : docs) {
-            if (doc.isConsentRequired() && "SIGNUP".equals(doc.getRequiredAt())
-                    && inputs.stream().noneMatch(i -> i.type().equals(doc.getType()) && Boolean.TRUE.equals(i.accepted())))
-                throw ApiException.bad("REQUIRED_CONSENT_MISSING", "필수 약관 동의가 필요합니다.");
-        }
-    }
     private void validate(List<ConsentInput> inputs) {
         if (inputs == null) throw ApiException.bad("INVALID_CONSENTS", "동의 목록이 필요합니다.");
         Set<String> seen = new HashSet<>();

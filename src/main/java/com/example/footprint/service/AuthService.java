@@ -41,7 +41,6 @@ public class AuthService {
     }
     @Transactional
     public UserDtos.Profile signup(Signup input) {
-        policies.validateSignup(input.consents());
         String email = normalizeEmail(input.email());
         if (users.existsByEmail(email)) throw ApiException.conflict("EMAIL_ALREADY_EXISTS");
         passwords.validate(input.password());
@@ -50,7 +49,9 @@ public class AuthService {
         var user = User.builder().email(email).nickname(nickname).passwordHash(encoder.encode(input.password()))
                 .friendCode(friendCode()).followerCount(0).followingCount(0).guestbookCount(0).build();
         users.saveAndFlush(user);
-        policies.record(user.getUserId(), input.consents());
+        if (input.consents() != null && !input.consents().isEmpty()) {
+            policies.record(user.getUserId(), input.consents());
+        }
         return profiles.profile(user.getUserId(), user.getUserId());
     }
     @Transactional
