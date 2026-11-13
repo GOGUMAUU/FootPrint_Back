@@ -29,7 +29,7 @@ import com.example.footprint.dto.maps.PlaceSearchResponseDto;
 import com.example.footprint.entity.Guestbook;
 import com.example.footprint.exception.ApiException;
 import com.example.footprint.repository.FollowRepository;
-import com.example.footprint.repository.GuestbookRepository;
+import com.example.footprint.repository.maps.GuestbookRepository;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
