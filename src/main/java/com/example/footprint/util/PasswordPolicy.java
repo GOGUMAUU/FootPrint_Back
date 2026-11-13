@@ -18,7 +18,7 @@ public class PasswordPolicy {
     public PasswordPolicy(@Value("${auth.breach-check-enabled:true}") boolean enabled) { breachCheck = enabled; }
     public void validate(String password) {
         if (password == null || password.codePointCount(0, password.length()) < 8 || password.codePointCount(0, password.length()) > 64)
-            throw ApiException.bad("PASSWORD_LENGTH", "비밀번호는 15~64 Unicode 코드 포인트여야 합니다.");
+            throw ApiException.bad("PASSWORD_LENGTH", "비밀번호는 8~64 Unicode 코드 포인트여야 합니다.");
         if (Set.of("passwordpassword", "123456789012345", "1234567890123456", "qwertyuiopasdfgh").contains(password.toLowerCase(Locale.ROOT))
                 || password.codePoints().distinct().count() == 1)
             throw ApiException.bad("WEAK_PASSWORD", "쉽게 추측할 수 있는 비밀번호입니다.");
