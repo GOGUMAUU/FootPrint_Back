@@ -3,6 +3,8 @@ package com.example.footprint.entity;
 import java.time.LocalDateTime;
 
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -32,6 +34,23 @@ public class User {
 
     @Column(name = "email", nullable = false, length = 100)
     private String email;
+
+    @JsonIgnore
+    @Column(name = "password_hash", length = 255)
+    private String passwordHash;
+
+    @Column(name = "friend_code", length = 20, unique = true)
+    private String friendCode;
+
+    @Builder.Default
+    @Column(name = "is_private", nullable = false)
+    private boolean privateAccount = false;
+
+    @UpdateTimestamp
+    private LocalDateTime updatedAt;
+
+    @JsonIgnore
+    private LocalDateTime deletedAt;
 
     @Column(name = "nickname", nullable = false, length = 50)
     private String nickname;

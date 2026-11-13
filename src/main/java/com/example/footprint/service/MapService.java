@@ -27,8 +27,9 @@ import com.example.footprint.dto.maps.NearbyGuestbookResponseDto;
 import com.example.footprint.dto.maps.NearbyGuestbookResponseDto.GuestbookItem;
 import com.example.footprint.dto.maps.PlaceSearchResponseDto;
 import com.example.footprint.entity.Guestbook;
+import com.example.footprint.exception.ApiException;
 import com.example.footprint.repository.FollowRepository;
-import com.example.footprint.repository.maps.GuestbookRepository;
+import com.example.footprint.repository.GuestbookRepository;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -49,6 +50,7 @@ public class MapService {
 
     private final GuestbookRepository guestbookRepository;
     private final FollowRepository followRepository;
+    private final UserService profiles;                 // 차단·비공개 계정·공개범위 판단 (main)
     private final RestTemplate restTemplate = new RestTemplate();
 
     @Value("${kakao.api.key}")
@@ -64,6 +66,13 @@ public class MapService {
             Double southLat, Double westLng, Double northLat, Double eastLng,
             String period, String ageGroup, String sort
     ) {
+        if (zoom == null || southLat == null || northLat == null || westLng == null || eastLng == null
+                || !Double.isFinite(zoom) || !Double.isFinite(southLat) || !Double.isFinite(northLat)
+                || !Double.isFinite(westLng) || !Double.isFinite(eastLng)
+                || southLat < -90 || northLat > 90 || westLng < -180 || eastLng > 180
+                || southLat > northLat || westLng > eastLng) {
+            throw ApiException.bad("INVALID_BOUNDS", "지도 범위가 올바르지 않습니다.");
+        }
         List<Long> targetUserIds;
 
         if ("me".equals(scope)) {
@@ -71,9 +80,10 @@ public class MapService {
         } else if ("following".equals(scope)) {
             targetUserIds = followRepository.findAcceptedFollowingIds(currentUserId);
         } else if ("user".equals(scope) && targetUserId != null) {
+            profiles.requireContentAccess(currentUserId, targetUserId);
             boolean isAccepted = followRepository.existsByFollower_UserIdAndFollowing_UserIdAndStatus(currentUserId, targetUserId, "ACCEPTED");
             if (!isAccepted && !currentUserId.equals(targetUserId)) {
-                throw new IllegalArgumentException("팔로우 승인된 사용자만 기록을 조회할 수 있습니다.");
+                throw ApiException.forbidden();
             }
             targetUserIds = Collections.singletonList(targetUserId);
         } else {
@@ -90,6 +100,10 @@ public class MapService {
                 BigDecimal.valueOf(westLng),
                 BigDecimal.valueOf(eastLng)
         );
+        // 차단·비공개 계정·FOLLOWERS_ONLY 등 최종 열람 권한 필터 (main)
+        guestbooks = guestbooks.stream()
+                .filter(g -> profiles.canReadGuestbook(currentUserId, g))
+                .collect(Collectors.toList());
 
         Map<Long, Integer> likes = loadLikeCounts(guestbooks);
         List<Candidate> candidates = new ArrayList<>();
@@ -99,13 +113,18 @@ public class MapService {
 
         // 영역 조회엔 '내 위치'가 없으므로 popular | latest
         String normalizedSort = "popular".equals(sort) ? "popular" : "latest";
-        int zoomLevel = zoom != null ? (int) Math.floor(zoom) : CLUSTER_MAX_ZOOM;
+        int zoomLevel = (int) Math.floor(zoom);
         return clusterAndPick(candidates, zoomLevel, normalizedSort);
     }
 
     // ───────────────────────── 주변(내 위치 1km) ─────────────────────────
 
     public NearbyGuestbookResponseDto getNearbyGuestbooks(NearbyGuestbookRequestDto request, Long currentUserId) {
+        if (request.getLatitude() == null || request.getLongitude() == null
+                || !Double.isFinite(request.getLatitude()) || !Double.isFinite(request.getLongitude())
+                || Math.abs(request.getLatitude()) > 90 || Math.abs(request.getLongitude()) > 180) {
+            throw ApiException.bad("INVALID_LOCATION", "위치 정보가 올바르지 않습니다.");
+        }
         double myLat = request.getLatitude();
         double myLng = request.getLongitude();
         int zoomLevel = request.getZoomLevel() != null ? request.getZoomLevel() : 16;
@@ -116,14 +135,17 @@ public class MapService {
         double dLng = dLat / Math.cos(Math.toRadians(myLat));
         List<Guestbook> raw = guestbookRepository.findVisibleInBox(
                 currentUserId,
-                Guestbook.Visibility.PUBLIC,
+                Guestbook.Visibility.PRIVATE,
                 BigDecimal.valueOf(myLat - dLat),
                 BigDecimal.valueOf(myLat + dLat),
                 BigDecimal.valueOf(myLng - dLng),
                 BigDecimal.valueOf(myLng + dLng)
         );
 
-        // 2) 정확한 거리로 원형(1km) 필터
+        // 2) 열람 권한 필터 (main) + 정확한 거리로 원형(1km) 필터
+        raw = raw.stream()
+                .filter(g -> profiles.canReadGuestbook(currentUserId, g))
+                .collect(Collectors.toList());
         Map<Long, Integer> likes = loadLikeCounts(raw);
         List<Candidate> candidates = new ArrayList<>();
         for (Guestbook g : raw) {

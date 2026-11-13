@@ -13,7 +13,9 @@ import com.example.footprint.dto.ApiResponse;
 import com.example.footprint.dto.maps.NearbyGuestbookRequestDto;
 import com.example.footprint.dto.maps.NearbyGuestbookResponseDto;
 import com.example.footprint.dto.maps.PlaceSearchResponseDto;
+import com.example.footprint.security.CurrentUserProvider;
 import com.example.footprint.service.MapService;
+import com.example.footprint.service.PolicyService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -23,6 +25,8 @@ import lombok.RequiredArgsConstructor;
 public class MapController {
 
     private final MapService mapService;
+    private final CurrentUserProvider current;
+    private final PolicyService policies;
 
     @GetMapping("/guestbooks/bound")
     public ResponseEntity<List<NearbyGuestbookResponseDto.GuestbookItem>> getGuestbooksInBound(
@@ -37,7 +41,8 @@ public class MapController {
             @RequestParam(required = false) String ageGroup,
             @RequestParam(required = false) String sort // "popular" | "latest"
     ) {
-        Long currentUserId = 1L;
+        Long currentUserId = current.id();
+        policies.requireLocation(currentUserId);
 
         List<NearbyGuestbookResponseDto.GuestbookItem> result = mapService.getGuestbooksInBound(
                 currentUserId, scope, targetUserId, zoom, southLat, westLng, northLat, eastLng, period, ageGroup, sort
@@ -50,7 +55,8 @@ public class MapController {
     public ResponseEntity<ApiResponse<NearbyGuestbookResponseDto>> getNearbyGuestbooks(
             @ModelAttribute NearbyGuestbookRequestDto requestDto) {
 
-        Long currentUserId = 1L;
+        Long currentUserId = current.id();
+        policies.requireLocation(currentUserId);   // 내 위치를 쓰는 API라 동의 체크 필수
 
         NearbyGuestbookResponseDto responseData = mapService.getNearbyGuestbooks(requestDto, currentUserId);
 
