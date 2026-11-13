@@ -10,7 +10,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.footprint.dto.ApiResponse;
-import com.example.footprint.dto.GuestbookBoundResponseDto;
 import com.example.footprint.dto.maps.NearbyGuestbookRequestDto;
 import com.example.footprint.dto.maps.NearbyGuestbookResponseDto;
 import com.example.footprint.dto.maps.PlaceSearchResponseDto;
@@ -26,7 +25,7 @@ public class MapController {
     private final MapService mapService;
 
     @GetMapping("/guestbooks/bound")
-    public ResponseEntity<List<GuestbookBoundResponseDto>> getGuestbooksInBound(
+    public ResponseEntity<List<NearbyGuestbookResponseDto.GuestbookItem>> getGuestbooksInBound(
             @RequestParam String scope, // "me", "following", "user"
             @RequestParam(required = false) Long targetUserId,
             @RequestParam Double zoom,
@@ -36,16 +35,17 @@ public class MapController {
             @RequestParam Double eastLng,
             @RequestParam(required = false) String period,
             @RequestParam(required = false) String ageGroup,
-            @RequestParam(required = false) String sort
+            @RequestParam(required = false) String sort // "popular" | "latest"
     ) {
         Long currentUserId = 1L;
 
-        List<GuestbookBoundResponseDto> result = mapService.getGuestbooksInBound(
+        List<NearbyGuestbookResponseDto.GuestbookItem> result = mapService.getGuestbooksInBound(
                 currentUserId, scope, targetUserId, zoom, southLat, westLng, northLat, eastLng, period, ageGroup, sort
         );
         return ResponseEntity.ok(result);
     }
 
+    /** sort = "distance"(기본) | "popular" */
     @GetMapping("/guestbooks/nearby")
     public ResponseEntity<ApiResponse<NearbyGuestbookResponseDto>> getNearbyGuestbooks(
             @ModelAttribute NearbyGuestbookRequestDto requestDto) {
@@ -60,13 +60,13 @@ public class MapController {
     }
 
     @GetMapping("/search")
-public ResponseEntity<ApiResponse<List<PlaceSearchResponseDto>>> searchPlaces(
-        @RequestParam String keyword) {
+    public ResponseEntity<ApiResponse<List<PlaceSearchResponseDto>>> searchPlaces(
+            @RequestParam String keyword) {
 
-    List<PlaceSearchResponseDto> places = mapService.searchPlaces(keyword);
+        List<PlaceSearchResponseDto> places = mapService.searchPlaces(keyword);
 
-    return ResponseEntity.ok(
-            ApiResponse.success("장소 검색이 완료되었습니다.", places)
-    );
-
-}}
+        return ResponseEntity.ok(
+                ApiResponse.success("장소 검색이 완료되었습니다.", places)
+        );
+    }
+}

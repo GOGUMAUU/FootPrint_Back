@@ -18,21 +18,24 @@ public class NearbyGuestbookResponseDto {
     private Integer totalCount;
     private List<GuestbookItem> guestbooks;
 
+    /** nearby / bound 공통 지도 아이템 */
     @Getter
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
     public static class GuestbookItem {
         private Long guestbookId;
-        private String title;
+        private Long userId;
+        private String title;          // 본문 앞부분 (말풍선용)
+        private String content;        // 본문 전체
         private String thumbnailUrl;
         private Double latitude;
         private Double longitude;
         private String locationName;
-        private Double distanceMeter;
+        private Double distanceMeter;  // bound 조회에선 null
         private Boolean isAccessible;
         private Integer likeCount;
-        private Boolean isClustered;
-        private Integer clusterCount;
+        private Boolean isClustered;   // true면 대표 글 + 주변 글 묶음
+        private Integer clusterCount;  // 묶인 글 개수 (대표 포함)
     }
 }
