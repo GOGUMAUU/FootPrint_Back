@@ -22,4 +22,4 @@ springdoc:
     
 kakao:
   api:
-    key: 1de5ea4c2146d99f265ab1fc1f9c8410
+    key: ${KAKAO_API_KEY:}
