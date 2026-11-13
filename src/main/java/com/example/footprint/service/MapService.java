@@ -43,8 +43,9 @@ public class MapService {
     // ── 정책 값 (앱 AppConfig와 맞출 것) ──
     private static final double NEARBY_RADIUS_KM = 1.0;      // 주변 모드 조회 반경
     private static final double UNLOCK_RADIUS_M = 100.0;     // 열람 가능 거리
-    private static final int CLUSTER_MAX_ZOOM = 17;          // 이 줌부터는 낱개로
-    private static final double BASE_CELL_DEG = 0.001;       // 줌 16 기준 격자 ≈ 110m (줌 1 내릴 때마다 2배)
+    private static final int CLUSTER_MAX_ZOOM = 20;          // 이 줌부터는 안 묶음 (사실상 최대 확대)
+    private static final double BUBBLE_W_PX = 160;           // 말풍선 가로(dp) — 앱 GuestbookMarkerRenderer 크기 기준
+    private static final double BUBBLE_H_PX = 70;            // 말풍선 세로(dp, 꼬리 포함)
     private static final int MAX_ITEMS = 50;                 // 한 번에 내려줄 최대 말풍선 수
     private static final int TITLE_MAX = 30;
 
@@ -167,45 +168,53 @@ public class MapService {
                 .build();
     }
 
-    // ───────────────────────── 클러스터링 (격자 방식) ─────────────────────────
+    // ───────────────────────── 클러스터링 (말풍선 크기 기준) ─────────────────────────
 
     /**
-     * 줌 < CLUSTER_MAX_ZOOM 이면 격자 칸 단위로 묶는다. 줌아웃할수록 칸이 2배씩 커짐.
-     * 각 칸의 대표 글 = sort 기준 1등 (거리순: 가장 가까운 글 / 인기순: 좋아요 1등 / 최신순: 최신 글)
-     * 대표 글 좌표에 말풍선을 찍으므로, 줌인하면 대표 글부터 순서대로 풀려나온다.
+     * 화면에서 말풍선끼리 겹치면 하나로 묶는다 (탐욕적 클러스터링).
+     *  1) sort 기준으로 정렬 (거리순: 가까운 글 / 인기순: 좋아요 / 최신순)
+     *  2) 앞에서부터 하나씩: 이미 뽑힌 대표 말풍선과 화면상 겹치면 그 대표에 합류, 아니면 새 대표가 됨
+     * → 겹치는 말풍선이 없어지고, 대표는 항상 그 무리에서 sort 1등.
+     *   줌인하면 화면상 거리가 벌어져서 대표부터 순서대로 풀려나온다.
      */
     private List<GuestbookItem> clusterAndPick(List<Candidate> candidates, int zoom, String sort) {
         Comparator<Candidate> cmp = comparatorFor(sort);
+        List<Candidate> sorted = candidates.stream().sorted(cmp).collect(Collectors.toList());
 
-        if (zoom >= CLUSTER_MAX_ZOOM) {
-            return candidates.stream()
-                    .sorted(cmp)
-                    .limit(MAX_ITEMS)
-                    .map(c -> toItem(c, 1))
-                    .collect(Collectors.toList());
+        if (zoom >= CLUSTER_MAX_ZOOM || sorted.isEmpty()) {
+            return sorted.stream().limit(MAX_ITEMS).map(c -> toItem(c, 1)).collect(Collectors.toList());
         }
 
-        double cell = BASE_CELL_DEG * Math.pow(2, (CLUSTER_MAX_ZOOM - 1) - zoom);
-        Map<String, List<Candidate>> groups = new LinkedHashMap<>();
-        for (Candidate c : candidates) {
-            long row = (long) Math.floor(c.g().getLatitude().doubleValue() / cell);
-            long col = (long) Math.floor(c.g().getLongitude().doubleValue() / cell);
-            groups.computeIfAbsent(row + ":" + col, k -> new ArrayList<>()).add(c);
-        }
+        // 줌 레벨 → 1px(dp)당 미터 (웹 메르카토르 기준, 카카오맵 줌 레벨과 거의 같음)
+        double refLat = sorted.get(0).g().getLatitude().doubleValue();
+        double metersPerPx = 156543.03392 * Math.cos(Math.toRadians(refLat)) / Math.pow(2, zoom);
+        double boxW = BUBBLE_W_PX * metersPerPx;   // 말풍선 가로가 차지하는 실제 거리(m)
+        double boxH = BUBBLE_H_PX * metersPerPx;   // 말풍선 세로(꼬리 포함)
+        double mPerDegLat = 111_320.0;
+        double mPerDegLng = 111_320.0 * Math.cos(Math.toRadians(refLat));
 
-        List<Candidate> representatives = new ArrayList<>();
+        List<Candidate> reps = new ArrayList<>();
         Map<Candidate, Integer> sizes = new HashMap<>();
-        for (List<Candidate> group : groups.values()) {
-            group.sort(cmp);
-            Candidate rep = group.get(0);
-            representatives.add(rep);
-            sizes.put(rep, group.size());
+        for (Candidate c : sorted) {
+            double lat = c.g().getLatitude().doubleValue();
+            double lng = c.g().getLongitude().doubleValue();
+            Candidate joined = null;
+            for (Candidate r : reps) {
+                double dy = Math.abs(lat - r.g().getLatitude().doubleValue()) * mPerDegLat;
+                double dx = Math.abs(lng - r.g().getLongitude().doubleValue()) * mPerDegLng;
+                if (dx < boxW && dy < boxH) { joined = r; break; }
+            }
+            if (joined != null) {
+                sizes.merge(joined, 1, Integer::sum);
+            } else {
+                reps.add(c);
+                sizes.put(c, 1);
+            }
         }
 
-        return representatives.stream()
-                .sorted(cmp)
+        return reps.stream()
                 .limit(MAX_ITEMS)
-                .map(rep -> toItem(rep, sizes.get(rep)))
+                .map(r -> toItem(r, sizes.get(r)))
                 .collect(Collectors.toList());
     }
 
