@@ -1,36 +1,38 @@
 package com.example.footprint.service;
 
-import com.example.footprint.entity.Guestbook.Visibility;
-import com.example.footprint.entity.Report.ReportReason;
-import com.example.footprint.entity.Report.ReportStatus;
-
-import com.example.footprint.dto.GuestbookRequest;
-import com.example.footprint.dto.GuestbookResponse;
-import com.example.footprint.dto.ReportRequest;
-import com.example.footprint.entity.Guestbook;
-import com.example.footprint.entity.GuestbookLike;
-import com.example.footprint.entity.GuestbookPhoto;
-import com.example.footprint.entity.GuestbookView;
-import com.example.footprint.entity.Report;
-import com.example.footprint.entity.User;
-import com.example.footprint.repository.GuestbookLikeRepository;
-import com.example.footprint.repository.GuestbookPhotoRepository;
-import com.example.footprint.repository.GuestbookRepository;
-import com.example.footprint.repository.GuestbookViewRepository;
-import com.example.footprint.repository.ReportRepository;
-import com.example.footprint.repository.UserRepository;
-import com.example.footprint.util.GeoUtils;
-import com.example.footprint.util.GuestbookPolicy;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import lombok.RequiredArgsConstructor;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
+
+import com.example.footprint.dto.GuestbookRequest;
+import com.example.footprint.dto.GuestbookResponse;
+import com.example.footprint.dto.ReportRequest;
+import com.example.footprint.entity.Guestbook;
+import com.example.footprint.entity.Guestbook.Visibility;
+import com.example.footprint.entity.GuestbookLike;
+import com.example.footprint.entity.GuestbookPhoto;
+import com.example.footprint.entity.GuestbookView;
+import com.example.footprint.entity.Report;
+import com.example.footprint.entity.Report.ReportReason;
+import com.example.footprint.entity.Report.ReportStatus;
+import com.example.footprint.entity.User;
+import com.example.footprint.repository.GuestbookLikeRepository;
+import com.example.footprint.repository.GuestbookPhotoRepository;
+import com.example.footprint.repository.GuestbookViewRepository;
+import com.example.footprint.repository.ReportRepository;
+import com.example.footprint.repository.UserRepository;
+import com.example.footprint.repository.maps.GuestbookRepository;
+import com.example.footprint.util.GeoUtils;
+import com.example.footprint.util.GuestbookPolicy;
+
+import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor

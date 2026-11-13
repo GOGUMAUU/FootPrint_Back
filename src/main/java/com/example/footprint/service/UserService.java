@@ -1,20 +1,26 @@
 package com.example.footprint.service;
 
 
+import java.util.List;
+import java.util.Locale;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.example.footprint.dto.CommonDtos.PageResponse;
+import com.example.footprint.dto.UserDtos.Patch;
+import com.example.footprint.dto.UserDtos.Profile;
+import com.example.footprint.dto.UserDtos.Relationship;
+import com.example.footprint.dto.UserDtos.Summary;
 import com.example.footprint.entity.Guestbook;
 import com.example.footprint.entity.User;
 import com.example.footprint.exception.ApiException;
 import com.example.footprint.repository.BlockRepository;
 import com.example.footprint.repository.FollowRepository;
-import com.example.footprint.repository.GuestbookRepository;
 import com.example.footprint.repository.UserRepository;
-import java.util.List;
-import java.util.Locale;
+import com.example.footprint.repository.maps.GuestbookRepository;
+
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import static com.example.footprint.dto.UserDtos.*;
 
 @Service
 @RequiredArgsConstructor
