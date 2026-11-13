@@ -32,3 +32,7 @@ file:
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
+    
+kakao:
+  api:
+    key: ${KAKAO_API_KEY:}
