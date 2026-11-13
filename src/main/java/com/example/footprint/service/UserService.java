@@ -17,8 +17,8 @@ import com.example.footprint.entity.User;
 import com.example.footprint.exception.ApiException;
 import com.example.footprint.repository.BlockRepository;
 import com.example.footprint.repository.FollowRepository;
+import com.example.footprint.repository.GuestbookRepository;
 import com.example.footprint.repository.UserRepository;
-import com.example.footprint.repository.maps.GuestbookRepository;
 
 import lombok.RequiredArgsConstructor;
 
