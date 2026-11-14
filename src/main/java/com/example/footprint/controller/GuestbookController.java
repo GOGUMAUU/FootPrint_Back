@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.data.domain.Page;
 
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -88,5 +89,26 @@ public class GuestbookController {
             @RequestBody ReportRequest request) {
         guestbookService.report(current.id(), id, request);
         return ResponseEntity.status(HttpStatus.CREATED).build();
+    }
+
+    // 1. 내 전체 기록 조회 (복합 필터 · 정렬 · 페이지네이션)
+    @GetMapping("/me")
+    public Page<GuestbookResponse> getMyGuestbooks(
+            @RequestParam(required = false) String period,
+            @RequestParam(defaultValue = "latest") String sort,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return guestbookService.getMyGuestbooks(current.id(), period, sort, page, size);
+    }
+
+    // 2. 팔로잉 사용자별 기록 조회 (팔로우 승인 검증 + 필터 · 정렬 · 페이지네이션)
+    @GetMapping("/users/{userId}")
+    public Page<GuestbookResponse> getUserGuestbooks(
+            @PathVariable Long userId,
+            @RequestParam(required = false) String period,
+            @RequestParam(defaultValue = "latest") String sort,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return guestbookService.getUserGuestbooks(current.id(), userId, period, sort, page, size);
     }
 }

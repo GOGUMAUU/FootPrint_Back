@@ -2,6 +2,8 @@ package com.example.footprint.service;
 
 import java.math.BigDecimal;
 import java.net.URI;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -29,7 +31,7 @@ import com.example.footprint.dto.maps.PlaceSearchResponseDto;
 import com.example.footprint.entity.Guestbook;
 import com.example.footprint.exception.ApiException;
 import com.example.footprint.repository.FollowRepository;
-import com.example.footprint.repository.maps.GuestbookRepository;
+import com.example.footprint.repository.GuestbookRepository;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -104,6 +106,21 @@ public class MapService {
         guestbooks = guestbooks.stream()
                 .filter(g -> profiles.canReadGuestbook(currentUserId, g))
                 .collect(Collectors.toList());
+        // 2. 기간(period) 필터 추가 ("7d", "30d")
+    if (period != null && !period.isBlank()) {
+        LocalDateTime cutoff = null;
+    if ("7d".equals(period)) {
+        cutoff = LocalDateTime.now().minusDays(7);
+    } else if ("30d".equals(period)) {
+        cutoff = LocalDateTime.now().minusDays(30);
+    }
+    if (cutoff != null) {
+        final LocalDateTime finalCutoff = cutoff;
+        guestbooks = guestbooks.stream()
+                .filter(g -> g.getCreatedAt() != null && !g.getCreatedAt().isBefore(finalCutoff))
+                .collect(Collectors.toList());
+    }
+}
 
         Map<Long, Integer> likes = loadLikeCounts(guestbooks);
         List<Candidate> candidates = new ArrayList<>();
