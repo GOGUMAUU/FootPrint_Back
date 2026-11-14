@@ -5,6 +5,9 @@ import com.example.footprint.dto.ChallengeDetailResponse;
 import com.example.footprint.dto.ChallengeListResponse;
 import com.example.footprint.entity.Quest;
 import com.example.footprint.repository.QuestRepository;
+import com.example.footprint.dto.VerifyLocationRequest;
+import com.example.footprint.dto.VerifyLocationResponse;
+import com.example.footprint.util.GeoUtils;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -66,4 +69,29 @@ public class ChallengeService {
                 null
         );
     }
+
+    @Transactional(readOnly = true)
+    public VerifyLocationResponse verifyLocation(
+            Long challengeId,
+            VerifyLocationRequest request
+    ) {
+        Quest quest = questRepository.findById(challengeId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "도전과제를 찾을 수 없습니다."
+                ));
+
+        double distance = GeoUtils.distanceMeters(
+                request.latitude(),
+                request.longitude(),
+                quest.getTargetLatitude().doubleValue(),
+                quest.getTargetLongitude().doubleValue()
+        );
+
+        int radius = quest.getTargetRadius();
+        boolean verified = distance <= radius;
+
+        return new VerifyLocationResponse(verified, distance, radius);
+    }
+
 }
