@@ -39,7 +39,7 @@ public interface GuestbookRepository extends JpaRepository<Guestbook, Long> {
     // 3. 주변 방명록 후보 조회 (내 위치 기준 사각형 → 정확한 원형 거리는 서비스에서 계산)
     //    공개 글 + 내 글만
     @Query("SELECT g FROM Guestbook g " +
-           "WHERE (g.visibility = :publicVisibility OR g.user.userId = :currentUserId) " +
+           "WHERE (g.visibility <> :publicVisibility OR g.user.userId = :currentUserId) " +
            "AND g.latitude BETWEEN :southLat AND :northLat " +
            "AND g.longitude BETWEEN :westLng AND :eastLng")
     List<Guestbook> findVisibleInBox(
