@@ -2,14 +2,19 @@ package com.example.footprint.service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+
 
 import com.example.footprint.dto.GuestbookRequest;
 import com.example.footprint.dto.GuestbookResponse;
@@ -23,12 +28,14 @@ import com.example.footprint.entity.Report;
 import com.example.footprint.entity.Report.ReportReason;
 import com.example.footprint.entity.Report.ReportStatus;
 import com.example.footprint.entity.User;
+import com.example.footprint.exception.ApiException;
+import com.example.footprint.repository.FollowRepository;
 import com.example.footprint.repository.GuestbookLikeRepository;
 import com.example.footprint.repository.GuestbookPhotoRepository;
+import com.example.footprint.repository.GuestbookRepository;
 import com.example.footprint.repository.GuestbookViewRepository;
 import com.example.footprint.repository.ReportRepository;
 import com.example.footprint.repository.UserRepository;
-import com.example.footprint.repository.maps.GuestbookRepository;
 import com.example.footprint.util.GeoUtils;
 import com.example.footprint.util.GuestbookPolicy;
 
@@ -47,6 +54,7 @@ public class GuestbookService {
     private final PhotoStorageService storage;
     private final UserService contentAccess;
     private final PolicyService policies;
+    private final FollowRepository followRepository;
 
     // ---------- 작성 ----------
     @Transactional
@@ -320,5 +328,50 @@ public class GuestbookService {
 
     private ResponseStatusException bad(String message) {
         return new ResponseStatusException(HttpStatus.BAD_REQUEST, message);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<GuestbookResponse> getMyGuestbooks(
+            Long currentUserId, String period, String sort, int page, int size) {
+        requireUser(currentUserId);
+        LocalDateTime cutoff = resolveCutoff(period);
+        Pageable pageable = PageRequest.of(page, size);
+
+        Page<Guestbook> result = "popular".equals(sort)
+                ? guestbookRepository.findUserGuestbooksOrderByPopular(currentUserId, true, Visibility.PRIVATE, cutoff, pageable)
+                : guestbookRepository.findUserGuestbooksOrderByLatest(currentUserId, true, Visibility.PRIVATE, cutoff, pageable);
+
+        return result.map(g -> toResponse(g, currentUserId));
+    }
+
+    @Transactional(readOnly = true)
+    public Page<GuestbookResponse> getUserGuestbooks(
+            Long currentUserId, Long targetUserId, String period, String sort, int page, int size) {
+        requireUser(currentUserId);
+        boolean isOwner = currentUserId.equals(targetUserId);
+
+        if (!isOwner) {
+            contentAccess.requireContentAccess(currentUserId, targetUserId);
+            boolean isAccepted = followRepository.existsByFollower_UserIdAndFollowing_UserIdAndStatus(
+                    currentUserId, targetUserId, "ACCEPTED");
+            if (!isAccepted) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "팔로우 승인된 사용자의 기록만 조회할 수 있어요.");
+            }
+        }
+
+        LocalDateTime cutoff = resolveCutoff(period);
+        Pageable pageable = PageRequest.of(page, size);
+
+        Page<Guestbook> result = "popular".equals(sort)
+                ? guestbookRepository.findUserGuestbooksOrderByPopular(targetUserId, isOwner, Visibility.PRIVATE, cutoff, pageable)
+                : guestbookRepository.findUserGuestbooksOrderByLatest(targetUserId, isOwner, Visibility.PRIVATE, cutoff, pageable);
+
+        return result.map(g -> toResponse(g, currentUserId));
+    }
+
+    private LocalDateTime resolveCutoff(String period) {
+        if ("7d".equals(period)) return LocalDateTime.now().minusDays(7);
+        if ("30d".equals(period)) return LocalDateTime.now().minusDays(30);
+        return null;
     }
 }
