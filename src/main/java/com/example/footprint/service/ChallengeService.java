@@ -54,14 +54,18 @@ public class ChallengeService {
                                             Boolean.TRUE.equals(userQuest.getIsCompleted()))
                                     .orElse(false);
 
+
                             return new ChallengeListResponse.ChallengeItem(
                                     quest.getQuestId(),
                                     quest.getTitle(),
                                     quest.getRegionName(),
                                     null,
                                     quest.getBadgeImageUrl(),
-                                    isCompleted
+                                    isCompleted,
+                                    quest.getTargetLatitude(),
+                                    quest.getTargetLongitude()
                             );
+
                         })
                         .toList();
 

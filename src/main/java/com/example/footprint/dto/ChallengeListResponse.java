@@ -1,6 +1,7 @@
 package com.example.footprint.dto;
 
 import java.util.List;
+import java.math.BigDecimal;
 
 public record ChallengeListResponse(
         int LocalChallenges_totalCount,
@@ -12,7 +13,9 @@ public record ChallengeListResponse(
             String region,
             String category,
             String iconUrl,
-            boolean isCompleted
+            boolean isCompleted,
+            BigDecimal latitude,
+            BigDecimal longitude
     ) {
     }
 }
