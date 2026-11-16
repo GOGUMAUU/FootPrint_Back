@@ -344,7 +344,7 @@ public class GuestbookService {
         return result.map(g -> toResponse(g, currentUserId));
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public Page<GuestbookResponse> getUserGuestbooks(
             Long currentUserId, Long targetUserId, String period, String sort, int page, int size) {
         requireUser(currentUserId);
