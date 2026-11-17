@@ -1,0 +1,48 @@
+name: Deploy to GCP VM
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Build jar
+        run: |
+          chmod +x gradlew
+          ./gradlew clean bootJar -x test
+
+      - name: Upload jar to VM
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          source: build/libs/footprint-0.0.1-SNAPSHOT.jar
+          target: /opt/footprint/
+          strip_components: 2
+
+      - name: Restart service
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          script: |
+            mv /opt/footprint/footprint-0.0.1-SNAPSHOT.jar /opt/footprint/app.jar
+            sudo systemctl restart footprint
+            for i in $(seq 1 30); do
+              if curl -sf http://localhost:8080/v3/api-docs > /dev/null; then echo "deploy OK"; exit 0; fi
+              sleep 3
+            done
+            echo "server did not start"; sudo journalctl -u footprint -n 60 --no-pager; exit 1
