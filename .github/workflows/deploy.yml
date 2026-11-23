@@ -39,10 +39,20 @@ jobs:
           username: ${{ secrets.VM_USER }}
           key: ${{ secrets.VM_SSH_KEY }}
           script: |
+            set -e
+            OLD_PID=$(systemctl show -p MainPID --value footprint)
             mv /opt/footprint/footprint-0.0.1-SNAPSHOT.jar /opt/footprint/app.jar
-            sudo systemctl restart footprint
-            for i in $(seq 1 30); do
-              if curl -sf http://localhost:8080/v3/api-docs > /dev/null; then echo "deploy OK"; exit 0; fi
+            sudo -n systemctl restart footprint
+            NEW_PID=$(systemctl show -p MainPID --value footprint)
+            echo "PID: $OLD_PID -> $NEW_PID"
+            if [ "$NEW_PID" = "$OLD_PID" ] || [ "$NEW_PID" = "0" ]; then
+              echo "service was not restarted"; sudo -n journalctl -u footprint -n 60 --no-pager; exit 1
+            fi
+            for i in $(seq 1 40); do
+              if sudo -n journalctl -u footprint _PID=$NEW_PID --no-pager | grep -q "Started FootprintApplication"; then
+                echo "deploy OK (new process $NEW_PID)"; exit 0
+              fi
+              if ! systemctl is-active --quiet footprint; then break; fi
               sleep 3
             done
-            echo "server did not start"; sudo journalctl -u footprint -n 60 --no-pager; exit 1
+            echo "new server did not start"; sudo -n journalctl -u footprint -n 80 --no-pager; exit 1
