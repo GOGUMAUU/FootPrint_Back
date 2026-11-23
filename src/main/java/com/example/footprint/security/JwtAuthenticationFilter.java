@@ -45,12 +45,22 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 var principal = new CurrentUserProvider.Principal(userId, sid);
                 SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(principal, null, List.of()));
             } catch (JwtException | IllegalArgumentException e) {
+                if (isPublic(req)) { SecurityContextHolder.clearContext(); chain.doFilter(req, res); return; }
                 String code = e instanceof JwtValidationException && e.getMessage().contains("expired")
                         ? "ACCESS_TOKEN_EXPIRED" : "ACCESS_TOKEN_INVALID";
                 write(res, code); return;
-            } catch (ApiException e) { write(res, e.code()); return; }
+            } catch (ApiException e) {
+                if (isPublic(req)) { SecurityContextHolder.clearContext(); chain.doFilter(req, res); return; }
+                write(res, e.code()); return;
+            }
         }
         chain.doFilter(req, res);
+    }
+    /** 로그인 없이 열리는 GET 경로: 오래되거나 다른 서버에서 받은 토큰이 붙어 와도 401로 막지 않는다 */
+    private static boolean isPublic(HttpServletRequest req) {
+        if (!"GET".equals(req.getMethod())) return false;
+        String uri = req.getRequestURI();
+        return uri.equals("/api/policies") || uri.startsWith("/api/policies/") || uri.startsWith("/files/profiles/");
     }
     private void write(HttpServletResponse res, String code) throws IOException {
         SecurityContextHolder.clearContext();
