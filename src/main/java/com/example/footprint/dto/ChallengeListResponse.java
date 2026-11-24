@@ -1,3 +1,4 @@
+
 package com.example.footprint.dto;
 
 import java.util.List;
@@ -15,7 +16,8 @@ public record ChallengeListResponse(
             String iconUrl,
             boolean isCompleted,
             BigDecimal latitude,
-            BigDecimal longitude
+            BigDecimal longitude,
+            long completedCount  //도전과제 달성 인원
     ) {
     }
 }

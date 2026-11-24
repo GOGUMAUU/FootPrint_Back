@@ -18,4 +18,7 @@ public interface UserQuestRepository extends JpaRepository<UserQuest, Long> {
     List<UserQuest> findByUser_UserIdAndIsCompletedTrueOrderByCompletedAtDesc(
             Long userId
     );
+
+    // 특정 도전과제를 완료한 전체 사용자 수 조회 (신규)
+    long countByQuest_QuestIdAndIsCompletedTrue(Long questId);
 }

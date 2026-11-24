@@ -45,14 +45,9 @@ public class ChallengeService {
         List<ChallengeListResponse.ChallengeItem> items =
                 quests.stream()
                         .map(quest -> {
-                            boolean isCompleted = userQuestRepository
-                                    .findByUser_UserIdAndQuest_QuestId(
-                                            userId,
-                                            quest.getQuestId()
-                                    )
-                                    .map(userQuest ->
-                                            Boolean.TRUE.equals(userQuest.getIsCompleted()))
-                                    .orElse(false);
+                            boolean isCompleted = userQuestRepository.findByUser_UserIdAndQuest_QuestId(userId,quest.getQuestId()).map(userQuest -> Boolean.TRUE.equals(userQuest.getIsCompleted())).orElse(false);
+                            // 이 도전과제를 완료한 전체 사용자 수
+                            long completedCount = userQuestRepository.countByQuest_QuestIdAndIsCompletedTrue(quest.getQuestId());
 
 
                             return new ChallengeListResponse.ChallengeItem(
@@ -63,8 +58,10 @@ public class ChallengeService {
                                     quest.getBadgeImageUrl(),
                                     isCompleted,
                                     quest.getTargetLatitude(),
-                                    quest.getTargetLongitude()
+                                    quest.getTargetLongitude(),
+                                    completedCount
                             );
+
 
                         })
                         .toList();
