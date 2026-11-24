@@ -9,6 +9,8 @@ import com.example.footprint.dto.VerifyLocationResponse;
 import com.example.footprint.dto.ChallengeSubmissionRequest;
 import com.example.footprint.dto.ChallengeSubmissionResponse;
 import com.example.footprint.service.ChallengeSubmissionService;
+import com.example.footprint.entity.QuestType;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -30,12 +32,22 @@ public class ChallengeController {
         this.challengeService = challengeService;
         this.submissionService = submissionService;
     }
-
     @GetMapping
-    public ChallengeListResponse getChallenges() {
-        return challengeService.getAllChallenges();
+    public ChallengeListResponse getChallenges(
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) String region,
+            @RequestParam(required = false) QuestType questType,
+            @RequestParam(required = false) Boolean isCompleted,
+            @RequestParam(required = false) String keyword
+    ) {
+        return challengeService.getAllChallenges(
+                category,
+                region,
+                questType,
+                isCompleted,
+                keyword
+        );
     }
-
     @GetMapping("/{challengeId}")
     public ChallengeDetailResponse getChallengeDetail(
             @PathVariable Long challengeId) {

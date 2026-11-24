@@ -1,8 +1,8 @@
-
 package com.example.footprint.dto;
 
 import java.util.List;
 import java.math.BigDecimal;
+import com.example.footprint.entity.QuestType;
 
 public record ChallengeListResponse(
         int LocalChallenges_totalCount,
@@ -17,7 +17,8 @@ public record ChallengeListResponse(
             boolean isCompleted,
             BigDecimal latitude,
             BigDecimal longitude,
-            long completedCount  //도전과제 달성 인원
-    ) {
-    }
+            long completedCount,
+            Long creatorId,
+            QuestType questType
+    ) {}
 }
