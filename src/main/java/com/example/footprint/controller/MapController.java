@@ -39,18 +39,19 @@ public class MapController {
             @RequestParam Double eastLng,
             @RequestParam(required = false) String period,
             @RequestParam(required = false) String ageGroup,
-            @RequestParam(required = false) String sort // "popular" | "latest"
+            @RequestParam(required = false) String sort, // (구버전 호환) "popular" | "latest"
+            @RequestParam(required = false) String pick  // 묶음 대표 기준: recommended(기본) | popular | latest
     ) {
         Long currentUserId = current.id();
         policies.requireLocation(currentUserId);
 
         List<NearbyGuestbookResponseDto.GuestbookItem> result = mapService.getGuestbooksInBound(
-                currentUserId, scope, targetUserId, zoom, southLat, westLng, northLat, eastLng, period, ageGroup, sort
+                currentUserId, scope, targetUserId, zoom, southLat, westLng, northLat, eastLng, period, ageGroup, sort, pick
         );
         return ResponseEntity.ok(result);
     }
 
-    /** sort = "distance"(기본) | "popular" */
+    /** pick = recommended(기본) | popular | latest, period = null | 7d | 30d */
     @GetMapping("/guestbooks/nearby")
     public ResponseEntity<ApiResponse<NearbyGuestbookResponseDto>> getNearbyGuestbooks(
             @ModelAttribute NearbyGuestbookRequestDto requestDto) {
