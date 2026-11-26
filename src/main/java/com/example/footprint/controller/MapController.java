@@ -65,6 +65,22 @@ public class MapController {
         );
     }
 
+    /**
+     * 게시판: 클러스터에 묶인 방명록 목록.
+     * ids = 지도 응답의 clusterIds (콤마 구분), latitude/longitude = 내 위치(선택), sort = latest | popular | distance
+     */
+    @GetMapping("/guestbooks/cluster")
+    public ResponseEntity<List<NearbyGuestbookResponseDto.GuestbookItem>> getClusterGuestbooks(
+            @RequestParam List<Long> ids,
+            @RequestParam(required = false) Double latitude,
+            @RequestParam(required = false) Double longitude,
+            @RequestParam(required = false) String sort
+    ) {
+        Long currentUserId = current.id();
+        policies.requireLocation(currentUserId);
+        return ResponseEntity.ok(mapService.getClusterGuestbooks(currentUserId, ids, latitude, longitude, sort));
+    }
+
     @GetMapping("/search")
     public ResponseEntity<ApiResponse<List<PlaceSearchResponseDto>>> searchPlaces(
             @RequestParam String keyword) {
