@@ -40,28 +40,35 @@ jobs:
           key: ${{ secrets.VM_SSH_KEY }}
           script: |
             set -e
+            cd /opt/footprint
             OLD_PID=$(systemctl show -p MainPID --value footprint)
-            # 실패하면 되돌릴 수 있게 지금 돌고 있는 jar를 백업
-            cp -p /opt/footprint/app.jar /opt/footprint/app.jar.bak || true
-            mv /opt/footprint/footprint-0.0.1-SNAPSHOT.jar /opt/footprint/app.jar
+            # 이번 배포가 실패하면 "마지막으로 정상 기동했던 jar"(app.jar.good)로 되돌린다
+            mv footprint-0.0.1-SNAPSHOT.jar app.jar.new
             rollback() {
-              echo "=== ROLLBACK: 이전 jar로 되돌립니다 ==="
-              if [ -f /opt/footprint/app.jar.bak ]; then
-                cp -p /opt/footprint/app.jar.bak /opt/footprint/app.jar
+              if [ -f app.jar.good ]; then
+                echo "=== ROLLBACK: 마지막 정상 버전(app.jar.good)으로 되돌립니다 ==="
+                cp -p app.jar.good app.jar
                 sudo -n systemctl restart footprint || true
+              else
+                echo "=== 되돌릴 정상 버전이 없습니다. 서버 로그를 확인하세요 ==="
               fi
             }
+            cp -p app.jar.new app.jar
             sudo -n systemctl restart footprint
             NEW_PID=$(systemctl show -p MainPID --value footprint)
             echo "PID: $OLD_PID -> $NEW_PID"
             if [ "$NEW_PID" = "$OLD_PID" ] || [ "$NEW_PID" = "0" ]; then
               echo "service was not restarted"; sudo -n journalctl -u footprint -n 60 --no-pager; rollback; exit 1
             fi
-            for i in $(seq 1 40); do
+            # 작은 VM이라 기동이 2분 넘게 걸릴 때도 있어서 최대 5분 기다린다
+            for i in $(seq 1 100); do
               if sudo -n journalctl -u footprint _PID=$NEW_PID --no-pager | grep -q "Started FootprintApplication"; then
-                echo "deploy OK (new process $NEW_PID)"; exit 0
+                cp -p app.jar app.jar.good
+                echo "deploy OK (new process $NEW_PID, $((i*3))s)"; exit 0
               fi
-              if ! systemctl is-active --quiet footprint; then break; fi
+              # 새 프로세스가 죽었으면(크래시 후 systemd 재시작 포함) 더 기다리지 않는다
+              CUR_PID=$(systemctl show -p MainPID --value footprint)
+              if [ "$CUR_PID" != "$NEW_PID" ]; then break; fi
               sleep 3
             done
             echo "new server did not start"; sudo -n journalctl -u footprint -n 80 --no-pager; rollback; exit 1
