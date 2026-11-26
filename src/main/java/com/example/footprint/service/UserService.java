@@ -53,6 +53,8 @@ public class UserService {
         }
     }
 
+    public boolean blockedBetween(Long a, Long b) { return blocks.between(a, b); }
+
     public boolean following(Long viewer, Long target) {
         return follows.existsByFollower_UserIdAndFollowing_UserIdAndStatus(viewer, target, "ACCEPTED");
     }
@@ -66,6 +68,11 @@ public class UserService {
         if (owner.getDeletedAt() != null) return false;
         if (owner.getUserId().equals(viewer)) return true;
         if (blocks.between(viewer, owner.getUserId())) return false;
+        // 편지: 작성자(위에서 이미 통과)와 받는 사람만. 받는 사람에겐 비공개 계정·팔로우 여부와 상관없이 보임
+        if (book.isLetter()) {
+            var to = book.getRecipient();
+            return to != null && to.getDeletedAt() == null && to.getUserId().equals(viewer);
+        }
         boolean accepted = following(viewer, owner.getUserId());
         if (owner.isPrivateAccount() && !accepted) return false;
         return book.getVisibility() == null || book.getVisibility() == Guestbook.Visibility.PUBLIC

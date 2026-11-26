@@ -60,26 +60,35 @@ public interface GuestbookRepository extends JpaRepository<Guestbook, Long> {
     @Query("SELECT g FROM Guestbook g " +
            "WHERE g.user.userId = :targetUserId " +
            "AND g.user.deletedAt IS NULL " +
-           "AND (:isOwner = true OR g.visibility <> :privateVis) " +
+           "AND (:isOwner = true OR (g.visibility <> :privateVis AND g.visibility <> :letterVis)) " +
            "AND (:cutoff IS NULL OR g.createdAt >= :cutoff) " +
            "ORDER BY g.createdAt DESC")
     Page<Guestbook> findUserGuestbooksOrderByLatest(
             @Param("targetUserId") Long targetUserId,
             @Param("isOwner") boolean isOwner,
             @Param("privateVis") Guestbook.Visibility privateVis,
+            @Param("letterVis") Guestbook.Visibility letterVis,
             @Param("cutoff") LocalDateTime cutoff,
             Pageable pageable);
 
     @Query("SELECT g FROM Guestbook g " +
            "WHERE g.user.userId = :targetUserId " +
            "AND g.user.deletedAt IS NULL " +
-           "AND (:isOwner = true OR g.visibility <> :privateVis) " +
+           "AND (:isOwner = true OR (g.visibility <> :privateVis AND g.visibility <> :letterVis)) " +
            "AND (:cutoff IS NULL OR g.createdAt >= :cutoff) " +
            "ORDER BY (SELECT COUNT(l) FROM GuestbookLike l WHERE l.guestbook = g) DESC, g.createdAt DESC")
     Page<Guestbook> findUserGuestbooksOrderByPopular(
             @Param("targetUserId") Long targetUserId,
             @Param("isOwner") boolean isOwner,
             @Param("privateVis") Guestbook.Visibility privateVis,
+            @Param("letterVis") Guestbook.Visibility letterVis,
             @Param("cutoff") LocalDateTime cutoff,
             Pageable pageable);
+
+    // ---------- 편지 ----------
+    List<Guestbook> findByRecipient_UserIdAndVisibilityOrderByCreatedAtDesc(Long recipientId, Guestbook.Visibility visibility);
+
+    List<Guestbook> findByUser_UserIdAndVisibilityOrderByCreatedAtDesc(Long userId, Guestbook.Visibility visibility);
+
+    long countByRecipient_UserIdAndVisibilityAndLetterOpenedAtIsNull(Long recipientId, Guestbook.Visibility visibility);
 }

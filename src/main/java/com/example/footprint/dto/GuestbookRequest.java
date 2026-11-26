@@ -20,6 +20,7 @@ public class GuestbookRequest {
     private Double currentLongitude;
     private String content;
     private String locationName;
-    private String visibility;        // PUBLIC | PRIVATE | FOLLOWERS_ONLY (기본 PUBLIC)
+    private String visibility;        // PUBLIC | PRIVATE | FOLLOWERS_ONLY | LETTER (기본 PUBLIC)
+    private Long recipientId;         // visibility=LETTER 일 때 받는 사람 (내가 팔로우 중인 사람만)
     private List<String> photoPaths;  // /api/guestbook-photos 업로드 응답의 path 목록
 }

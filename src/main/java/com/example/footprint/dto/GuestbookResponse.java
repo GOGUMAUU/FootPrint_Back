@@ -23,4 +23,8 @@ public class GuestbookResponse {
     private long likeCount;
     private boolean liked;          // 요청한 사용자가 좋아요 했는지
     private boolean mine;           // 요청한 사용자가 작성자인지
+    private boolean letter;         // 그 자리에서 열리는 편지인지
+    private Long recipientId;       // 편지 받는 사람
+    private String recipientNickname;
+    private LocalDateTime letterOpenedAt; // 받는 사람이 처음 열어 본 시각 (아직이면 null)
 }
