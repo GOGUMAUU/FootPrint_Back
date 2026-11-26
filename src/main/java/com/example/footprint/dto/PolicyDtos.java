@@ -16,4 +16,6 @@ public final class PolicyDtos {
         }
     }
     public record Documents(List<Document> policies) {}
+    /** 내가 현재 버전에 동의해 둔 약관 종류 (예: ["TERMS","LOCATION"]) */
+    public record ActiveConsents(List<String> types) {}
 }

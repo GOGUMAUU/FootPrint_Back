@@ -16,6 +16,7 @@ public class PolicyController {
     @GetMapping("/api/policies") public Documents list() { return new Documents(service.current().stream().map(Document::of).toList()); }
     @io.swagger.v3.oas.annotations.security.SecurityRequirements
     @GetMapping("/api/policies/{type}") public Document get(@PathVariable String type) { return Document.of(service.policy(type)); }
+    @GetMapping("/api/users/me/consents") public ActiveConsents myConsents() { return new ActiveConsents(service.activeConsentTypes(current.id())); }
     @PostMapping("/api/users/me/consents") public ResponseEntity<Void> consent(@Valid @RequestBody ConsentRequest request) {
         service.record(current.id(), request.consents()); return ResponseEntity.noContent().build();
     }
