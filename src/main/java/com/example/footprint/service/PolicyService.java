@@ -56,6 +56,15 @@ public class PolicyService {
         if (!policy(type).isWithdrawable()) throw ApiException.bad("CONSENT_NOT_WITHDRAWABLE", "이 동의는 해당 API로 철회할 수 없습니다.");
         consents.findByUserIdAndTypeAndWithdrawnAtIsNull(userId, type).forEach(c -> c.setWithdrawnAt(clock.instant()));
     }
+    /** 지금 게시된 버전 기준으로 내가 동의해 둔(철회 안 한) 약관 종류들 */
+    @Transactional(readOnly = true)
+    public List<String> activeConsentTypes(Long userId) {
+        return current().stream()
+                .filter(p -> consents.existsByUserIdAndTypeAndVersionAndWithdrawnAtIsNull(userId, p.getType(), p.getVersion()))
+                .map(PolicyDocument::getType)
+                .toList();
+    }
+
     public void requireLocation(Long userId) {
         var p = current().stream().filter(d -> "LOCATION".equals(d.getType()) && d.isConsentRequired()).findFirst();
         if (p.isEmpty() || !consents.existsByUserIdAndTypeAndVersionAndWithdrawnAtIsNull(userId, "LOCATION", p.get().getVersion()))
