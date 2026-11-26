@@ -27,4 +27,6 @@ public class GuestbookResponse {
     private Long recipientId;       // 편지 받는 사람
     private String recipientNickname;
     private LocalDateTime letterOpenedAt; // 받는 사람이 처음 열어 본 시각 (아직이면 null)
+    private long footprintCount;      // 👣 그 자리에 와서 열어 본 사람 수 (작성자 제외, 편지는 0)
+    private long todayFootprintCount; // 그중 오늘(한국 시간) 다녀간 사람 수
 }

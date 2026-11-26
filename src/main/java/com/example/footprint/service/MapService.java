@@ -54,6 +54,7 @@ public class MapService {
 
     private final GuestbookRepository guestbookRepository;
     private final FollowRepository followRepository;
+    private final com.example.footprint.repository.GuestbookViewRepository guestbookViewRepository;
     private final UserService profiles;                 // 차단·비공개 계정·공개범위 판단 (main)
     private final RestTemplate restTemplate = new RestTemplate();
 
@@ -373,6 +374,23 @@ public class MapService {
     private static String truncate(String s, int max) {
         if (s == null) return null;
         return s.length() <= max ? s : s.substring(0, max) + "…";
+    }
+
+    /** 👣 게시판: 묶인 글들에 다녀간 사람 수 (서로 다른 사람, 작성자 제외, 편지·볼 수 없는 글 제외) */
+    public NearbyGuestbookResponseDto.Footprints getClusterFootprints(Long currentUserId, List<Long> ids) {
+        if (ids == null || ids.isEmpty()) return new NearbyGuestbookResponseDto.Footprints(0, 0);
+        if (ids.size() > CLUSTER_LIST_MAX) {
+            throw ApiException.bad("TOO_MANY_IDS", "한 번에 조회할 수 있는 방명록은 " + CLUSTER_LIST_MAX + "개까지입니다.");
+        }
+        List<Long> readable = guestbookRepository.findAllById(ids.stream().distinct().collect(Collectors.toList()))
+                .stream()
+                .filter(g -> !g.isLetter() && profiles.canReadGuestbook(currentUserId, g))
+                .map(Guestbook::getGuestbookId)
+                .collect(Collectors.toList());
+        if (readable.isEmpty()) return new NearbyGuestbookResponseDto.Footprints(0, 0);
+        return new NearbyGuestbookResponseDto.Footprints(
+                guestbookViewRepository.countFootprintsIn(readable, null),
+                guestbookViewRepository.countFootprintsIn(readable, GuestbookService.startOfTodayKst()));
     }
 
     // ───────────────────────── 장소 검색 ─────────────────────────

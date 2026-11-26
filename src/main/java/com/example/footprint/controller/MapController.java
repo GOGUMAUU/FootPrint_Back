@@ -82,6 +82,14 @@ public class MapController {
         return ResponseEntity.ok(mapService.getClusterGuestbooks(currentUserId, ids, latitude, longitude, sort));
     }
 
+    /** 👣 게시판 상단: 묶인 글들에 다녀간 사람 수. ids = clusterIds */
+    @GetMapping("/guestbooks/cluster/footprints")
+    public ResponseEntity<NearbyGuestbookResponseDto.Footprints> getClusterFootprints(@RequestParam List<Long> ids) {
+        Long currentUserId = current.id();
+        policies.requireLocation(currentUserId);
+        return ResponseEntity.ok(mapService.getClusterFootprints(currentUserId, ids));
+    }
+
     @GetMapping("/search")
     public ResponseEntity<ApiResponse<List<PlaceSearchResponseDto>>> searchPlaces(
             @RequestParam String keyword) {
