@@ -121,6 +121,10 @@ public class GuestbookService {
             if (g.isLetter() && g.getLetterOpenedAt() == null) {
                 g.setLetterOpenedAt(java.time.LocalDateTime.now());
             }
+            // 👣 거리 검증을 통과한 열람만 발자국으로 남김 (작성자·편지 제외, 같은 사람은 1번)
+            if (!g.isLetter() && !viewRepository.existsByGuestbook_GuestbookIdAndUser_UserId(guestbookId, userId)) {
+                viewRepository.save(GuestbookView.builder().guestbook(g).user(userRepository.getReferenceById(userId)).build());
+            }
         }
         return toResponse(g, userId);
     }
@@ -203,12 +207,11 @@ public class GuestbookService {
     // ---------- 열람 기록 (사용자당 1회) ----------
     @Transactional
     public void saveView(Long userId, Long guestbookId) {
-        User user = requireUser(userId);
+        // 하위 호환용으로만 남겨 둠. 발자국(열람 기록)은 이제 상세 조회(get)에서
+        // 거리 검증을 통과했을 때 서버가 직접 남긴다 → 이 API로는 안 가고 발자국을 남길 수 없음
+        requireUser(userId);
         Guestbook g = requireGuestbook(guestbookId);
         contentAccess.requireReadableGuestbook(userId, g);
-        if (!viewRepository.existsByGuestbook_GuestbookIdAndUser_UserId(guestbookId, userId)) {
-            viewRepository.save(GuestbookView.builder().guestbook(g).user(user).build());
-        }
     }
 
     // ---------- 신고 ----------
@@ -272,7 +275,16 @@ public class GuestbookService {
                 .recipientId(g.getRecipient() != null ? g.getRecipient().getUserId() : null)
                 .recipientNickname(g.getRecipient() != null ? g.getRecipient().getNickname() : null)
                 .letterOpenedAt(g.getLetterOpenedAt())
+                .footprintCount(g.isLetter() ? 0 : viewRepository.countFootprints(id, null))
+                .todayFootprintCount(g.isLetter() ? 0 : viewRepository.countFootprints(id, startOfTodayKst()))
                 .build();
+    }
+
+    /** 한국 시간 오늘 0시를 서버(JVM) 기준 LocalDateTime 으로 (viewed_at 이 서버 시간으로 저장됨) */
+    public static LocalDateTime startOfTodayKst() {
+        java.time.ZoneId kst = java.time.ZoneId.of("Asia/Seoul");
+        java.time.Instant start = java.time.LocalDate.now(kst).atStartOfDay(kst).toInstant();
+        return LocalDateTime.ofInstant(start, java.time.ZoneId.systemDefault());
     }
 
     /** 편지 받는 사람 검증: 존재, 나 아님, 내가 팔로우 중(승인됨), 차단 관계 아님 */

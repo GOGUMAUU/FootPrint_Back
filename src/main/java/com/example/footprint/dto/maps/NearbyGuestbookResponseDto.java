@@ -18,6 +18,9 @@ public class NearbyGuestbookResponseDto {
     private Integer totalCount;
     private List<GuestbookItem> guestbooks;
 
+    /** 👣 게시판(클러스터) 발자국 수 */
+    public record Footprints(long count, long today) {}
+
     /** nearby / bound 공통 지도 아이템 */
     @Getter
     @Builder(toBuilder = true)
