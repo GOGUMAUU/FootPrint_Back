@@ -50,6 +50,7 @@ public class MapService {
     private static final double BUBBLE_H_PX = 70;            // 말풍선 세로(dp, 꼬리 포함)
     private static final int MAX_ITEMS = 50;                 // 한 번에 내려줄 최대 말풍선 수
     private static final int TITLE_MAX = 30;
+    private static final int CLUSTER_LIST_MAX = 200;         // 게시판 목록 한 번에 조회할 최대 글 수
 
     private final GuestbookRepository guestbookRepository;
     private final FollowRepository followRepository;
@@ -199,7 +200,7 @@ public class MapService {
         List<Candidate> sorted = candidates.stream().sorted(cmp).collect(Collectors.toList());
 
         if (zoom >= CLUSTER_MAX_ZOOM || sorted.isEmpty()) {
-            return sorted.stream().limit(MAX_ITEMS).map(c -> toItem(c, 1)).collect(Collectors.toList());
+            return sorted.stream().limit(MAX_ITEMS).map(c -> toItem(c, null)).collect(Collectors.toList());
         }
 
         // 줌 레벨 → 1px(dp)당 미터 (웹 메르카토르 기준, 카카오맵 줌 레벨과 거의 같음)
@@ -211,7 +212,7 @@ public class MapService {
         double mPerDegLng = 111_320.0 * Math.cos(Math.toRadians(refLat));
 
         List<Candidate> reps = new ArrayList<>();
-        Map<Candidate, Integer> sizes = new HashMap<>();
+        Map<Candidate, List<Long>> members = new HashMap<>();
         for (Candidate c : sorted) {
             double lat = c.g().getLatitude().doubleValue();
             double lng = c.g().getLongitude().doubleValue();
@@ -222,16 +223,18 @@ public class MapService {
                 if (dx < boxW && dy < boxH) { joined = r; break; }
             }
             if (joined != null) {
-                sizes.merge(joined, 1, Integer::sum);
+                members.get(joined).add(c.g().getGuestbookId());
             } else {
                 reps.add(c);
-                sizes.put(c, 1);
+                List<Long> ids = new ArrayList<>();
+                ids.add(c.g().getGuestbookId());
+                members.put(c, ids);
             }
         }
 
         return reps.stream()
                 .limit(MAX_ITEMS)
-                .map(r -> toItem(r, sizes.get(r)))
+                .map(r -> toItem(r, members.get(r)))
                 .collect(Collectors.toList());
     }
 
@@ -249,7 +252,9 @@ public class MapService {
         };
     }
 
-    private GuestbookItem toItem(Candidate c, int clusterCount) {
+    /** memberIds: 묶인 글 id 목록(대표 포함). null 이면 낱개 */
+    private GuestbookItem toItem(Candidate c, List<Long> memberIds) {
+        int clusterCount = memberIds == null ? 1 : memberIds.size();
         Guestbook g = c.g();
         Double distance = c.distance() != null ? Math.round(c.distance() * 10.0) / 10.0 : null;
         return GuestbookItem.builder()
@@ -266,7 +271,53 @@ public class MapService {
                 .likeCount(c.likes())
                 .isClustered(clusterCount > 1)
                 .clusterCount(clusterCount)
+                .clusterIds(clusterCount > 1 ? memberIds : null)
                 .build();
+    }
+
+    // ───────────────────────── 게시판(클러스터 목록) ─────────────────────────
+
+    /**
+     * 클러스터에 묶인 글들을 목록으로 돌려준다. ids 는 지도 응답의 clusterIds 를 그대로 받는다.
+     * 클라이언트가 보낸 id 라도 열람 권한을 다시 확인한다(권한 없는 글은 조용히 빠짐).
+     * 내 위치(lat/lng)가 오면 거리·열람 가능 여부를 계산하고, 없으면 거리 없이 열람 가능으로 본다(영역 조회와 같은 규칙).
+     * sort = "latest"(기본) | "popular" | "distance"(위치가 있을 때만)
+     */
+    public List<GuestbookItem> getClusterGuestbooks(Long currentUserId, List<Long> ids,
+                                                    Double myLat, Double myLng, String sort) {
+        if (ids == null || ids.isEmpty()) return Collections.emptyList();
+        if (ids.size() > CLUSTER_LIST_MAX) {
+            throw ApiException.bad("TOO_MANY_IDS", "한 번에 조회할 수 있는 방명록은 " + CLUSTER_LIST_MAX + "개까지입니다.");
+        }
+        boolean hasLocation = myLat != null && myLng != null && Double.isFinite(myLat) && Double.isFinite(myLng)
+                && Math.abs(myLat) <= 90 && Math.abs(myLng) <= 180;
+
+        List<Guestbook> books = guestbookRepository.findAllById(ids.stream().distinct().collect(Collectors.toList()))
+                .stream()
+                .filter(g -> profiles.canReadGuestbook(currentUserId, g))
+                .collect(Collectors.toList());
+
+        Map<Long, Integer> likes = loadLikeCounts(books);
+        List<Candidate> candidates = new ArrayList<>();
+        for (Guestbook g : books) {
+            Double d = hasLocation ? calculateDistanceMeter(myLat, myLng,
+                    g.getLatitude().doubleValue(), g.getLongitude().doubleValue()) : null;
+            candidates.add(new Candidate(g, d, likes.getOrDefault(g.getGuestbookId(), 0)));
+        }
+
+        String normalized = "popular".equals(sort) ? "popular"
+                : ("distance".equals(sort) && hasLocation) ? "distance" : "latest";
+        return candidates.stream()
+                .sorted(comparatorFor(normalized))
+                .map(c -> {
+                    GuestbookItem item = toItem(c, null);
+                    Guestbook g = c.g();
+                    return item.toBuilder()
+                            .nickname(g.getUser() != null ? g.getUser().getNickname() : null)
+                            .createdAt(g.getCreatedAt() != null ? g.getCreatedAt().toString() : null)
+                            .build();
+                })
+                .collect(Collectors.toList());
     }
 
     private Map<Long, Integer> loadLikeCounts(List<Guestbook> guestbooks) {

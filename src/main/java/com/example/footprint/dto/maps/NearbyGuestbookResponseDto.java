@@ -20,7 +20,7 @@ public class NearbyGuestbookResponseDto {
 
     /** nearby / bound 공통 지도 아이템 */
     @Getter
-    @Builder
+    @Builder(toBuilder = true)
     @NoArgsConstructor
     @AllArgsConstructor
     public static class GuestbookItem {
@@ -37,5 +37,8 @@ public class NearbyGuestbookResponseDto {
         private Integer likeCount;
         private Boolean isClustered;   // true면 대표 글 + 주변 글 묶음
         private Integer clusterCount;  // 묶인 글 개수 (대표 포함)
+        private List<Long> clusterIds; // 묶인 글 id 목록 (대표 포함, 묶였을 때만). 게시판 목록 조회에 그대로 넘긴다
+        private String nickname;       // 게시판 목록 조회에서만 채움
+        private String createdAt;      // 게시판 목록 조회에서만 채움 (ISO-8601)
     }
 }
