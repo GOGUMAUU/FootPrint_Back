@@ -41,12 +41,21 @@ jobs:
           script: |
             set -e
             OLD_PID=$(systemctl show -p MainPID --value footprint)
+            # 실패하면 되돌릴 수 있게 지금 돌고 있는 jar를 백업
+            cp -p /opt/footprint/app.jar /opt/footprint/app.jar.bak || true
             mv /opt/footprint/footprint-0.0.1-SNAPSHOT.jar /opt/footprint/app.jar
+            rollback() {
+              echo "=== ROLLBACK: 이전 jar로 되돌립니다 ==="
+              if [ -f /opt/footprint/app.jar.bak ]; then
+                cp -p /opt/footprint/app.jar.bak /opt/footprint/app.jar
+                sudo -n systemctl restart footprint || true
+              fi
+            }
             sudo -n systemctl restart footprint
             NEW_PID=$(systemctl show -p MainPID --value footprint)
             echo "PID: $OLD_PID -> $NEW_PID"
             if [ "$NEW_PID" = "$OLD_PID" ] || [ "$NEW_PID" = "0" ]; then
-              echo "service was not restarted"; sudo -n journalctl -u footprint -n 60 --no-pager; exit 1
+              echo "service was not restarted"; sudo -n journalctl -u footprint -n 60 --no-pager; rollback; exit 1
             fi
             for i in $(seq 1 40); do
               if sudo -n journalctl -u footprint _PID=$NEW_PID --no-pager | grep -q "Started FootprintApplication"; then
@@ -55,4 +64,4 @@ jobs:
               if ! systemctl is-active --quiet footprint; then break; fi
               sleep 3
             done
-            echo "new server did not start"; sudo -n journalctl -u footprint -n 80 --no-pager; exit 1
+            echo "new server did not start"; sudo -n journalctl -u footprint -n 80 --no-pager; rollback; exit 1
