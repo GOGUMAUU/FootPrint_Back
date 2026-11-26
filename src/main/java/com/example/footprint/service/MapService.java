@@ -61,14 +61,14 @@ public class MapService {
     private String kakaoApiKey;
 
     /** 클러스터링·정렬용 내부 후보 */
-    private record Candidate(Guestbook g, Double distance, int likes) {}
+    private record Candidate(Guestbook g, Double distance, int likes, boolean friend) {}
 
     // ───────────────────────── 영역(팔로잉/내 지도/특정 유저) ─────────────────────────
 
     public List<GuestbookItem> getGuestbooksInBound(
             Long currentUserId, String scope, Long targetUserId, Double zoom,
             Double southLat, Double westLng, Double northLat, Double eastLng,
-            String period, String ageGroup, String sort
+            String period, String ageGroup, String sort, String pick
     ) {
         if (zoom == null || southLat == null || northLat == null || westLng == null || eastLng == null
                 || !Double.isFinite(zoom) || !Double.isFinite(southLat) || !Double.isFinite(northLat)
@@ -108,32 +108,17 @@ public class MapService {
         guestbooks = guestbooks.stream()
                 .filter(g -> profiles.canReadGuestbook(currentUserId, g))
                 .collect(Collectors.toList());
-        // 2. 기간(period) 필터 추가 ("7d", "30d")
-    if (period != null && !period.isBlank()) {
-        LocalDateTime cutoff = null;
-    if ("7d".equals(period)) {
-        cutoff = LocalDateTime.now().minusDays(7);
-    } else if ("30d".equals(period)) {
-        cutoff = LocalDateTime.now().minusDays(30);
-    }
-    if (cutoff != null) {
-        final LocalDateTime finalCutoff = cutoff;
-        guestbooks = guestbooks.stream()
-                .filter(g -> g.getCreatedAt() != null && !g.getCreatedAt().isBefore(finalCutoff))
-                .collect(Collectors.toList());
-    }
-}
+        guestbooks = filterByPeriod(guestbooks, period);
 
         Map<Long, Integer> likes = loadLikeCounts(guestbooks);
+        java.util.Set<Long> friends = friendIds(currentUserId);
         List<Candidate> candidates = new ArrayList<>();
         for (Guestbook g : guestbooks) {
-            candidates.add(new Candidate(g, null, likes.getOrDefault(g.getGuestbookId(), 0)));
+            candidates.add(new Candidate(g, null, likes.getOrDefault(g.getGuestbookId(), 0), isFriend(friends, g)));
         }
 
-        // 영역 조회엔 '내 위치'가 없으므로 popular | latest
-        String normalizedSort = "popular".equals(sort) ? "popular" : "latest";
         int zoomLevel = (int) Math.floor(zoom);
-        return clusterAndPick(candidates, zoomLevel, normalizedSort);
+        return clusterAndPick(candidates, zoomLevel, normalizePick(pick, sort));
     }
 
     // ───────────────────────── 주변(내 위치 1km) ─────────────────────────
@@ -147,7 +132,7 @@ public class MapService {
         double myLat = request.getLatitude();
         double myLng = request.getLongitude();
         int zoomLevel = request.getZoomLevel() != null ? request.getZoomLevel() : 16;
-        String sort = "popular".equals(request.getSort()) ? "popular" : "distance";
+        String pick = normalizePick(request.getPick(), request.getSort());
 
         // 1) 반경을 감싸는 사각형으로 DB에서 후보만 가져오고
         double dLat = NEARBY_RADIUS_KM / 111.32;
@@ -165,18 +150,20 @@ public class MapService {
         raw = raw.stream()
                 .filter(g -> profiles.canReadGuestbook(currentUserId, g))
                 .collect(Collectors.toList());
+        raw = filterByPeriod(raw, request.getPeriod());
         Map<Long, Integer> likes = loadLikeCounts(raw);
+        java.util.Set<Long> friends = friendIds(currentUserId);
         List<Candidate> candidates = new ArrayList<>();
         for (Guestbook g : raw) {
             double d = calculateDistanceMeter(myLat, myLng,
                     g.getLatitude().doubleValue(), g.getLongitude().doubleValue());
             if (d <= NEARBY_RADIUS_KM * 1000) {
-                candidates.add(new Candidate(g, d, likes.getOrDefault(g.getGuestbookId(), 0)));
+                candidates.add(new Candidate(g, d, likes.getOrDefault(g.getGuestbookId(), 0), isFriend(friends, g)));
             }
         }
 
-        // 3) 줌에 맞게 클러스터링 + 정렬
-        List<GuestbookItem> items = clusterAndPick(candidates, zoomLevel, sort);
+        // 3) 줌에 맞게 클러스터링 (묶음 대표는 pick 기준 1등)
+        List<GuestbookItem> items = clusterAndPick(candidates, zoomLevel, pick);
 
         return NearbyGuestbookResponseDto.builder()
                 .centerLatitude(myLat)
@@ -245,11 +232,46 @@ public class MapService {
                 (Candidate c) -> c.g().getCreatedAt(), Comparator.nullsLast(Comparator.reverseOrder()));
         Comparator<Candidate> byLikes = Comparator.comparingInt(Candidate::likes).reversed();
 
+        // 추천: 열람 가능한 글 → 친구 글 → 좋아요 많은 글 → 최신 글
+        Comparator<Candidate> byAccessible = Comparator.comparing(
+                (Candidate c) -> c.distance() == null || c.distance() <= UNLOCK_RADIUS_M ? 0 : 1);
+        Comparator<Candidate> byFriend = Comparator.comparing((Candidate c) -> c.friend() ? 0 : 1);
+
         return switch (sort) {
             case "popular" -> byLikes.thenComparing(byDistance).thenComparing(byLatest);
             case "latest" -> byLatest;
-            default -> byDistance.thenComparing(byLikes); // distance
+            case "distance" -> byDistance.thenComparing(byLikes);
+            default -> byAccessible.thenComparing(byFriend).thenComparing(byLikes).thenComparing(byLatest); // recommended
         };
+    }
+
+    /** 묶음 대표 기준. pick 우선, 없으면 구버전 sort 값으로 추정. 기본은 recommended */
+    private static String normalizePick(String pick, String legacySort) {
+        String v = pick != null ? pick : legacySort;
+        if ("popular".equals(v)) return "popular";
+        if ("latest".equals(v)) return "latest";
+        return "recommended";
+    }
+
+    /** 작성 기간 필터: null(전체) | "7d" | "30d" */
+    private static List<Guestbook> filterByPeriod(List<Guestbook> books, String period) {
+        LocalDateTime cutoff = "7d".equals(period) ? LocalDateTime.now().minusDays(7)
+                : "30d".equals(period) ? LocalDateTime.now().minusDays(30) : null;
+        if (cutoff == null) return books;
+        return books.stream()
+                .filter(g -> g.getCreatedAt() != null && !g.getCreatedAt().isBefore(cutoff))
+                .collect(Collectors.toList());
+    }
+
+    /** 내가 팔로우 중(승인됨)인 사람 + 나 */
+    private java.util.Set<Long> friendIds(Long currentUserId) {
+        java.util.Set<Long> ids = new java.util.HashSet<>(followRepository.findAcceptedFollowingIds(currentUserId));
+        ids.add(currentUserId);
+        return ids;
+    }
+
+    private static boolean isFriend(java.util.Set<Long> friends, Guestbook g) {
+        return g.getUser() != null && friends.contains(g.getUser().getUserId());
     }
 
     /** memberIds: 묶인 글 id 목록(대표 포함). null 이면 낱개 */
@@ -302,7 +324,7 @@ public class MapService {
         for (Guestbook g : books) {
             Double d = hasLocation ? calculateDistanceMeter(myLat, myLng,
                     g.getLatitude().doubleValue(), g.getLongitude().doubleValue()) : null;
-            candidates.add(new Candidate(g, d, likes.getOrDefault(g.getGuestbookId(), 0)));
+            candidates.add(new Candidate(g, d, likes.getOrDefault(g.getGuestbookId(), 0), false));
         }
 
         String normalized = "popular".equals(sort) ? "popular"
