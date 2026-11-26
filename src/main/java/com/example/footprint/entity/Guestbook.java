@@ -57,6 +57,15 @@ public class Guestbook {
     @Column(name = "location_naem", length = 100) // DDL 오타 반영
     private String locationName;
 
+    /** 편지(LETTER)일 때 받는 사람. 그 외에는 null */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "recipient_id")
+    private User recipient;
+
+    /** 받는 사람이 그 자리에서 처음 열어 본 시각 (편지일 때만) */
+    @Column(name = "letter_opened_at")
+    private LocalDateTime letterOpenedAt;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -66,6 +75,10 @@ public class Guestbook {
     private LocalDateTime updatedAt;
 
     public enum Visibility {
-        PUBLIC, PRIVATE, FOLLOWERS_ONLY
+        PUBLIC, PRIVATE, FOLLOWERS_ONLY,
+        /** 그 자리에서 열리는 편지: 작성자와 받는 사람만, 받는 사람은 그 장소에 가야 열 수 있음 */
+        LETTER
     }
+
+    public boolean isLetter() { return visibility == Visibility.LETTER; }
 }

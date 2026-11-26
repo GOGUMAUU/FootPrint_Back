@@ -80,12 +80,16 @@ public class GuestbookService {
                     "현재 위치에서 " + (int) GuestbookPolicy.CREATE_ALLOWED_RADIUS_METERS + "m 이내 장소에만 작성할 수 있어요.");
         }
 
+        Visibility visibility = parseVisibility(req.getVisibility(), Visibility.PUBLIC);
+        User recipient = visibility == Visibility.LETTER ? requireLetterRecipient(userId, req.getRecipientId()) : null;
+
         Guestbook saved = guestbookRepository.save(Guestbook.builder()
                 .user(user)
                 .content(content)
                 .latitude(toDecimal(req.getLatitude()))
                 .longitude(toDecimal(req.getLongitude()))
-                .visibility(parseVisibility(req.getVisibility(), Visibility.PUBLIC))
+                .visibility(visibility)
+                .recipient(recipient)
                 .locationName(trimToNull(req.getLocationName(), 100))
                 .build());
 
@@ -95,7 +99,7 @@ public class GuestbookService {
     }
 
     // ---------- 상세 ----------
-    @Transactional(readOnly = true)
+    @Transactional
     public GuestbookResponse get(Long userId, Long guestbookId, Double lat, Double lng) {
         Guestbook g = requireGuestbook(guestbookId);
         contentAccess.requireReadableGuestbook(userId, g);
@@ -110,7 +114,12 @@ public class GuestbookService {
                     g.getLatitude().doubleValue(), g.getLongitude().doubleValue());
             if (distance > GuestbookPolicy.UNLOCK_RADIUS_METERS) {
                 int more = (int) Math.ceil(distance - GuestbookPolicy.UNLOCK_RADIUS_METERS);
-                throw new ResponseStatusException(HttpStatus.FORBIDDEN, more + "m 더 가까이 가야 볼 수 있어요.");
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                        (g.isLetter() ? "편지는 그 자리에 가야 열 수 있어요. " : "") + more + "m 더 가까이 가야 볼 수 있어요.");
+            }
+            // 받는 사람이 그 자리에서 편지를 처음 열었으면 기록
+            if (g.isLetter() && g.getLetterOpenedAt() == null) {
+                g.setLetterOpenedAt(java.time.LocalDateTime.now());
             }
         }
         return toResponse(g, userId);
@@ -130,7 +139,12 @@ public class GuestbookService {
             g.setLocationName(trimToNull(req.getLocationName(), 100));
         }
         if (req.getVisibility() != null) {
-            g.setVisibility(parseVisibility(req.getVisibility(), g.getVisibility()));
+            Visibility next = parseVisibility(req.getVisibility(), g.getVisibility());
+            // 편지 ↔ 일반 방명록 전환은 막음 (받는 사람이 바뀌거나 공개되는 사고 방지)
+            if ((next == Visibility.LETTER) != g.isLetter()) {
+                throw bad("편지와 일반 방명록은 서로 바꿀 수 없어요.");
+            }
+            g.setVisibility(next);
         }
         if (req.getPhotoPaths() != null) {
             List<String> newPaths = validatePhotos(userId, req.getPhotoPaths());
@@ -254,7 +268,25 @@ public class GuestbookService {
                 .liked(viewerId != null
                         && likeRepository.existsByGuestbook_GuestbookIdAndUser_UserId(id, viewerId))
                 .mine(g.getUser().getUserId().equals(viewerId))
+                .letter(g.isLetter())
+                .recipientId(g.getRecipient() != null ? g.getRecipient().getUserId() : null)
+                .recipientNickname(g.getRecipient() != null ? g.getRecipient().getNickname() : null)
+                .letterOpenedAt(g.getLetterOpenedAt())
                 .build();
+    }
+
+    /** 편지 받는 사람 검증: 존재, 나 아님, 내가 팔로우 중(승인됨), 차단 관계 아님 */
+    private User requireLetterRecipient(Long senderId, Long recipientId) {
+        if (recipientId == null) throw bad("편지를 받을 친구를 골라 주세요.");
+        if (recipientId.equals(senderId)) throw bad("나에게는 편지를 보낼 수 없어요.");
+        User to = userRepository.findById(recipientId)
+                .filter(u -> u.getDeletedAt() == null)
+                .orElseThrow(() -> bad("받는 사람을 찾을 수 없어요."));
+        if (!followRepository.existsByFollower_UserIdAndFollowing_UserIdAndStatus(senderId, recipientId, "ACCEPTED")) {
+            throw bad("내가 팔로우 중인 친구에게만 편지를 보낼 수 있어요.");
+        }
+        if (contentAccess.blockedBetween(senderId, recipientId)) throw bad("받는 사람을 찾을 수 없어요.");
+        return to;
     }
 
     private User requireUser(Long userId) {
@@ -338,8 +370,8 @@ public class GuestbookService {
         Pageable pageable = PageRequest.of(page, size);
 
         Page<Guestbook> result = "popular".equals(sort)
-                ? guestbookRepository.findUserGuestbooksOrderByPopular(currentUserId, true, Visibility.PRIVATE, cutoff, pageable)
-                : guestbookRepository.findUserGuestbooksOrderByLatest(currentUserId, true, Visibility.PRIVATE, cutoff, pageable);
+                ? guestbookRepository.findUserGuestbooksOrderByPopular(currentUserId, true, Visibility.PRIVATE, Visibility.LETTER, cutoff, pageable)
+                : guestbookRepository.findUserGuestbooksOrderByLatest(currentUserId, true, Visibility.PRIVATE, Visibility.LETTER, cutoff, pageable);
 
         return result.map(g -> toResponse(g, currentUserId));
     }
@@ -363,8 +395,8 @@ public class GuestbookService {
         Pageable pageable = PageRequest.of(page, size);
 
         Page<Guestbook> result = "popular".equals(sort)
-                ? guestbookRepository.findUserGuestbooksOrderByPopular(targetUserId, isOwner, Visibility.PRIVATE, cutoff, pageable)
-                : guestbookRepository.findUserGuestbooksOrderByLatest(targetUserId, isOwner, Visibility.PRIVATE, cutoff, pageable);
+                ? guestbookRepository.findUserGuestbooksOrderByPopular(targetUserId, isOwner, Visibility.PRIVATE, Visibility.LETTER, cutoff, pageable)
+                : guestbookRepository.findUserGuestbooksOrderByLatest(targetUserId, isOwner, Visibility.PRIVATE, Visibility.LETTER, cutoff, pageable);
 
         return result.map(g -> toResponse(g, currentUserId));
     }

@@ -40,5 +40,6 @@ public class NearbyGuestbookResponseDto {
         private List<Long> clusterIds; // 묶인 글 id 목록 (대표 포함, 묶였을 때만). 게시판 목록 조회에 그대로 넘긴다
         private String nickname;       // 게시판 목록 조회에서만 채움
         private String createdAt;      // 게시판 목록 조회에서만 채움 (ISO-8601)
+        private Boolean letter;        // 그 자리에서 열리는 편지 (말풍선을 따로 그림, 묶이지 않음)
     }
 }

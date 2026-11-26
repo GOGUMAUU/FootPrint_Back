@@ -183,6 +183,19 @@ public class MapService {
      *   줌인하면 화면상 거리가 벌어져서 대표부터 순서대로 풀려나온다.
      */
     private List<GuestbookItem> clusterAndPick(List<Candidate> candidates, int zoom, String sort) {
+        // 편지는 받는 사람이 꼭 찾을 수 있게 묶지 않고 따로 내려준다 (작성자·받는 사람에게만 보이는 글)
+        List<GuestbookItem> letters = candidates.stream()
+                .filter(c -> c.g().isLetter())
+                .map(c -> toItem(c, null))
+                .collect(Collectors.toList());
+        List<GuestbookItem> rest = clusterNonLetters(
+                candidates.stream().filter(c -> !c.g().isLetter()).collect(Collectors.toList()), zoom, sort);
+        List<GuestbookItem> all = new ArrayList<>(letters);
+        all.addAll(rest);
+        return all;
+    }
+
+    private List<GuestbookItem> clusterNonLetters(List<Candidate> candidates, int zoom, String sort) {
         Comparator<Candidate> cmp = comparatorFor(sort);
         List<Candidate> sorted = candidates.stream().sorted(cmp).collect(Collectors.toList());
 
@@ -279,11 +292,15 @@ public class MapService {
         int clusterCount = memberIds == null ? 1 : memberIds.size();
         Guestbook g = c.g();
         Double distance = c.distance() != null ? Math.round(c.distance() * 10.0) / 10.0 : null;
+        boolean letter = g.isLetter();
         return GuestbookItem.builder()
                 .guestbookId(g.getGuestbookId())
                 .userId(g.getUser() != null ? g.getUser().getUserId() : null)
-                .title(truncate(g.getContent(), TITLE_MAX))
-                .content(g.getContent())
+                // 편지 본문은 지도 응답에 싣지 않음 (그 자리에서 상세로만 열람)
+                .title(letter ? null : truncate(g.getContent(), TITLE_MAX))
+                .content(letter ? null : g.getContent())
+                .letter(letter)
+                .nickname(letter && g.getUser() != null ? g.getUser().getNickname() : null)
                 .thumbnailUrl(null)
                 .latitude(g.getLatitude().doubleValue())
                 .longitude(g.getLongitude().doubleValue())
@@ -317,6 +334,7 @@ public class MapService {
         List<Guestbook> books = guestbookRepository.findAllById(ids.stream().distinct().collect(Collectors.toList()))
                 .stream()
                 .filter(g -> profiles.canReadGuestbook(currentUserId, g))
+                .filter(g -> !g.isLetter()) // 편지는 게시판 목록에 싣지 않음 (본문 노출 방지)
                 .collect(Collectors.toList());
 
         Map<Long, Integer> likes = loadLikeCounts(books);
